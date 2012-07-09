@@ -119,9 +119,7 @@ public:
 
 ///////////////////////////////////////////////////////////////////////////////
 // Includes inline functions.
-#if !defined(BUILD_INLINE)
 #include "DGtal/io/readers/OFFReader.ih"
-#endif
 
 
 //                                                                           //
