@@ -94,20 +94,28 @@ int main( int argc, char** argv )
   double step = atof( argv[ 8 ] );
 
 
-  Polynomial3 P;
-  Polynomial3Reader reader;
-  std::string poly_str = argv[ 1 ];
-  std::string::const_iterator iter
-      = reader.read( P, poly_str.begin(), poly_str.end() );
-  if ( iter != poly_str.end() )
-  {
-    std::cerr << "ERROR: I read only <"
-              << poly_str.substr( 0, iter - poly_str.begin() )
-              << ">, and I built P=" << P << std::endl;
-    return 1;
-  }
+  Polynomial3 P = 6*mmonomial<double>( 0, 0, 0 )
+    -45*mmonomial<double>( 2, 0, 0 )
+    -45*mmonomial<double>( 0, 2, 0 )
+    -45*mmonomial<double>( 0, 0, 2 )
+    +81*mmonomial<double>( 4, 0, 0 )
+    +81*mmonomial<double>( 0, 4, 0 )
+    +81*mmonomial<double>( 0, 0, 4 );
 
+  // Polynomial3 P;
+  // Polynomial3Reader reader;
+  // std::string poly_str = argv[ 1 ];
+  // std::string::const_iterator iter
+  //     = reader.read( P, poly_str.begin(), poly_str.end() );
+  // if ( iter != poly_str.end() )
+  // {
+  //   std::cerr << "ERROR: I read only <"
+  //             << poly_str.substr( 0, iter - poly_str.begin() )
+  //             << ">, and I built P=" << P << std::endl;
+  //   return 1;
+  // }
 
+  std::cout << "P(X_0, Y_0, Z_0)=" << P << std::endl;
   ImplicitShape ishape( P );
   DigitalShape dshape;
   dshape.attach( ishape );
@@ -164,9 +172,9 @@ int main( int argc, char** argv )
   {
 
     RealPoint A = midpoint( *it ) * step;
-    A = ishape.nearestPoint (A,0.01,200,0.1);
-//    double a = ishape.meanCurvature( A );
-    double a=ishape.gaussianCurvature(A);
+    //A = ishape.nearestPoint (A,0.01,200,0.1);
+    double a = ishape.meanCurvature( A );
+    // double a=ishape.gaussianCurvature(A);
     if ( boost::math::isnan( a ))
     {
       a = 0;
@@ -205,11 +213,12 @@ int main( int argc, char** argv )
         it != it_end; ++it, ++nbSurfels )
   {
 
-
     RealPoint A = midpoint( *it ) * step;
     A = ishape.nearestPoint (A,0.01,200,0.1);
-    double a=ishape.gaussianCurvature(A);
-//    double a = ishape.meanCurvature( A );
+    //double a=ishape.gaussianCurvature(A);
+    double a = ishape.meanCurvature( A );
+    std::cerr << a << std::endl;
+
     if ( boost::math::isnan( a ))
     {
       a = 0;
