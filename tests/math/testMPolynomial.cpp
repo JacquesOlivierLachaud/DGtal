@@ -206,6 +206,7 @@ bool testMPolynomialReader()
   string s5 = "x^3y+xz^3+y^3z+z^3+5z"; // Durchblick
   string s6 = "(y^2+z^2-1)^2 +(x^2+y^2-1)^3"; // Crixxi 
   string s7 = "(y^2+z^2-1)^2 Abrahamovitch"; 
+  string s7b = "(81*x^4 + 81*y^4 + 81*z^4 - 45*x^2 - 45*y^2 - 45*z^2 +6)"; //Cuboid 
   bool ok1 = reader.read( P, s1.begin(), s1.end() ) == s1.end();
   trace.info() << "- Parsing " << s1 << " : " << ok1 << " " << P << std::endl;
   bool ok2 = reader.read( P, s2.begin(), s2.end() ) == s2.end();
@@ -220,6 +221,8 @@ bool testMPolynomialReader()
   trace.info() << "- Parsing " << s6 << " : " << ok6 << " " << P << std::endl;
   bool ok7 = reader.read( P, s7.begin(), s7.end() ) == s7.end();
   trace.info() << "- Parsing " << s7 << " : " << ok7 << " " << P << std::endl;
+  bool ok7b = reader.read( P, s7b.begin(), s7b.end() ) == s7b.end();
+  trace.info() << "- Parsing " << s7b << " : " << ok7b << " " << P << std::endl;
 
   string s8 = "(zyx^2+x^2-1)^2 + xy AVERTY"; 
   std::istringstream sin( s8 );
@@ -227,7 +230,7 @@ bool testMPolynomialReader()
   sin >> P >> other;
   trace.info() << "- Read " << P << " and " << other << std::endl;
 
-  return ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && (!ok7);
+  return ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7b && (!ok7);
 }
 ///////////////////////////////////////////////////////////////////////////////
 // Standard services - public :

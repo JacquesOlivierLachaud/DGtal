@@ -166,9 +166,9 @@ namespace DGtal
     /**
        Perform a gradient descent in order to move a point @a aPoint
        closer to the implicit surface. More precisely, we use a
-       sequence: x_n = x_(n-1) - gamma.gradient(x_(n-1).
-       The descent is stopped if @a maxIter is reached or if |x_n -
-       x_(n-1)| < accuracy. 
+       sequence: x_n = x_(n-1) - gamma.gradient(x_(n-1)).  The descent
+       is stopped if @a maxIter is reached or if |x_n - x_(n-1)| <
+       accuracy.
        
        @param aPoint any point in the Euclidean space.
        @param accuracy distance criterion to stop the descent.

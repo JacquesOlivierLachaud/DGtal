@@ -60,25 +60,25 @@ DGtal::ImplicitPolynomial3Shape<TSpace>::
 operator=( const ImplicitPolynomial3Shape & other )
 {
   if ( this != &other )
-  {
-    myPolynomial = other.myPolynomial;
+    {
+      myPolynomial = other.myPolynomial;
 
-    myFx= other.myFx;
-    myFy= other.myFy;
-    myFz= other.myFz;
+      myFx= other.myFx;
+      myFy= other.myFy;
+      myFz= other.myFz;
 
-    myFxx= other.myFxx;
-    myFxy= other.myFxy;
-    myFxz= other.myFxz;
+      myFxx= other.myFxx;
+      myFxy= other.myFxy;
+      myFxz= other.myFxz;
 
-    myFyx= other.myFyx;
-    myFyy= other.myFyy;
-    myFyz= other.myFyz;
+      myFyx= other.myFyx;
+      myFyy= other.myFyy;
+      myFyz= other.myFyz;
 
-    myFzx= other.myFzx;
-    myFzy= other.myFzy;
-    myFzz= other.myFzz;
-  }
+      myFzx= other.myFzx;
+      myFzy= other.myFzy;
+      myFzz= other.myFzz;
+    }
   return *this;
 }
 //-----------------------------------------------------------------------------
@@ -107,9 +107,9 @@ init( const Polynomial3 & poly )
   myFzz= derivative<2>( myFz );
 
   myUpPolynome = myFx*(myFx*myFxx+myFy*myFyx+myFz*myFzx)+
-				myFy*(myFx*myFxy+myFy*myFyy+myFz*myFzy)+
-				myFz*(myFx*myFxz+myFy*myFyz+myFz*myFzz)-
-				( myFx*myFx +myFy*myFy+myFz*myFz )*(myFxx+myFyy+myFzz);
+    myFy*(myFx*myFxy+myFy*myFyy+myFz*myFzy)+
+    myFz*(myFx*myFxz+myFy*myFyz+myFz*myFzz)-
+    ( myFx*myFx +myFy*myFy+myFz*myFz )*(myFxx+myFyy+myFzz);
 
   myLowPolynome = myFx*myFx +myFy*myFy+myFz*myFz;
 }
@@ -157,9 +157,9 @@ gradient( const RealPoint &aPoint ) const
   // copied into the caller context, but will be already defined in
   // the correct context.
   return RealVector
-      ( myFx ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ),
-        myFy ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ),
-        myFz ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ) );
+    ( myFx ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ),
+      myFy ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ),
+      myFz ( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] ) );
 
 }
 
@@ -174,7 +174,7 @@ gradient( const RealPoint &aPoint ) const
  * we define it as positive for a sphere
  * @return the mean curvature value of the polynomial at \a aPoint.
  * 
-*/
+ */
 template <typename TSpace>
 inline
 double
@@ -218,7 +218,6 @@ gaussianCurvature( const RealPoint &aPoint ) const
   double vFzz = myFzz( aPoint[ 0 ] )( aPoint[ 1 ] )( aPoint[ 2 ] );
 
 
-
   double A = vFz*(vFxx*vFz-2.0*vFx*vFxz)+vFx*vFx*vFzz;
 
   double B = vFz*(vFyy*vFz-2.0*vFy*vFyz)+vFy*vFy*vFzz;
@@ -246,31 +245,33 @@ gaussianCurvature( const RealPoint &aPoint ) const
 template <typename TSpace>
 inline
 typename DGtal::ImplicitPolynomial3Shape<TSpace>::RealPoint 
-DGtal::ImplicitPolynomial3Shape<TSpace>::nearestPoint( const RealPoint &aPoint, const double accuracy, 
-                                                       const int maxIter, const double gamma ) const
+DGtal::ImplicitPolynomial3Shape<TSpace>::nearestPoint( const RealPoint &aPoint,
+						       const double accuracy, 
+                                                       const int maxIter, 
+						       const double gamma ) const
 {
-   RealPoint gradient= (*this).gradient(aPoint);
-   RealPoint X=aPoint;
-   int numberIter=0;
-   while((fabs((*this)(X))>=accuracy) && (numberIter<maxIter))
-   {
-        double norm=gradient.norm();
-	RealPoint normalizedGradient= RealPoint(gradient[0]/norm,gradient[1]/norm,gradient[2]/norm);
-        double alpha =gamma;
-	if((*this)(X)>0)
+  RealPoint grad = (*this).gradient(aPoint);
+  RealPoint X=aPoint;
+  int numberIter=0;
+  while((fabs((*this)(X))>=accuracy) && (numberIter<maxIter))
+    {
+      double norm=grad.norm();
+      RealPoint normalizedGradient= RealPoint(grad[0]/norm,grad[1]/norm,grad[2]/norm);
+      double alpha =gamma;
+      if((*this)(X)>0)
 	{
-		alpha=-alpha;
+	  alpha=-alpha;
 	}
-	else
+      else
 	{
 
 	}
 	
-	X=X+normalizedGradient*alpha;
-	gradient=  (*this).gradient(X);
-	numberIter++;
-   }
-	return X;
+      X=X+normalizedGradient*alpha;
+      grad =  (*this).gradient(X);
+      numberIter++;
+    }
+  return X;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

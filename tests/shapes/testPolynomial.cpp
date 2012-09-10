@@ -172,7 +172,7 @@ int main( int argc, char** argv )
   {
 
     RealPoint A = midpoint( *it ) * step;
-    //A = ishape.nearestPoint (A,0.01,200,0.1);
+    A = ishape.nearestPoint (A,sqrt(step),200,0.001);
     double a = ishape.meanCurvature( A );
     // double a=ishape.gaussianCurvature(A);
     if ( boost::math::isnan( a ))
@@ -214,10 +214,11 @@ int main( int argc, char** argv )
   {
 
     RealPoint A = midpoint( *it ) * step;
-    A = ishape.nearestPoint (A,0.01,200,0.1);
+    //
+    RealPoint Ap = ishape.nearestPoint (A,sqrt(step),200,0.001);
     //double a=ishape.gaussianCurvature(A);
-    double a = ishape.meanCurvature( A );
-    std::cerr << a << std::endl;
+    double a = ishape.meanCurvature( Ap );
+    //std::cerr << a << std::endl;
 
     if ( boost::math::isnan( a ))
     {
