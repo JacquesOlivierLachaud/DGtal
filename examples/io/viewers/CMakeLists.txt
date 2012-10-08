@@ -7,6 +7,7 @@ SET(DGTAL_TESTS_SRC
    viewer3D-4bis-illustrationMode.cpp
    viewer3D-6-clipping
    demo-kernel-2
+   logoDGtal-3d
 )
 
 SET(DGTAL_TESTS_GMP_SRC
