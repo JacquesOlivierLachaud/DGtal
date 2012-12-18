@@ -1,0 +1,145 @@
+/**
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ **/
+
+/**
+ * @file MinCircumcircleCurvatureEstimator.ih
+ * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
+ * Laboratory of Mathematics (CNRS, UMR 5127), University of Savoie, France
+ *
+ * @date 2012/12/18
+ *
+ * Implementation of inline methods defined in MinCircumcircleCurvatureEstimator.h
+ *
+ * This file is part of the DGtal library.
+ */
+
+
+//////////////////////////////////////////////////////////////////////////////
+#include <cstdlib>
+//////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// IMPLEMENTATION of inline methods.
+///////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// ----------------------- Standard services ------------------------------
+
+
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+~MinCircumcircleCurvatureEstimator()
+{
+  if ( mySegmentation != 0 ) delete mySegmentation;
+}
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+MinCircumcircleCurvatureEstimator()
+  : mySegmentation( 0 )
+{
+}
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+void
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+init(const double h, 
+     const ConstIterator& itb, 
+     const ConstIterator& ite )
+{
+  myH = h;
+  myBeginIt = itb;
+  myEndIt = ite;
+  myIsInitBefore = true;
+  if ( mySegmentation != 0 ) delete mySegmentation;
+  // Computes the tangential cover of [itb, ite).
+  DSSAlgorithm dssComputer;
+  mySegmentation = new Segmentation( itb, ite, dssComputer );
+
+}
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+template <typename OutputIterator>
+inline
+typename DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::Quantity
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+eval( ConstIterator itb,
+      ConstIterator ite,
+      OutputIterator ito ) const
+{
+  ASSERT(myH > 0);
+  ASSERT(myIsInitBefore);
+  if ( isEmpty( myBeginIt, myEndIt ) ) return ito;
+
+}
+
+
+
+
+
+
+
+/**
+ * Writes/Displays the object on an output stream.
+ * @param out the output stream where the object is written.
+ */
+template <typename TConstIterator>
+inline
+void
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::selfDisplay ( std::ostream & out ) const
+{
+  out << "[MinCircumcircleCurvatureEstimator]";
+  if (myIsInitBefore) 
+    out <<" myH="<<myH;
+  else
+    out<< " not initialized";
+}
+
+/**
+ * Checks the validity/consistency of the object.
+ * @return 'true' if the object is valid, 'false' otherwise.
+ */
+template <typename TConstIterator>
+inline
+bool
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::isValid() const
+{
+  return myIsInitBefore;
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Implementation of inline functions                                        //
+
+template <typename TConstIterator>
+inline
+std::ostream&
+DGtal::operator<< ( std::ostream & out, 
+		    const MinCircumcircleCurvatureEstimator<TConstIterator> & object )
+{
+  object.selfDisplay( out );
+  return out;
+}
+
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
+
