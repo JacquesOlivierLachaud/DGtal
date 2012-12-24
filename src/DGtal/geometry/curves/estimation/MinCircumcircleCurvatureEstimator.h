@@ -44,6 +44,9 @@
 // Inclusions
 #include <iostream>
 #include "DGtal/base/Common.h"
+#include "DGtal/base/IteratorTraits.h"
+#include "DGtal/geometry/curves/ArithmeticalDSS.h"
+#include "DGtal/geometry/curves/SaturatedSegmentation.h"
 //////////////////////////////////////////////////////////////////////////////
 
 namespace DGtal
@@ -72,11 +75,24 @@ namespace DGtal
   public:
 
 
-    ///@todo CONCEPT CHECK sur ConstIterator
+    ///@todo CONCEPT CHECK sur ConstIterator. Iterator on point.
     typedef TConstIterator ConstIterator;
 
     typedef double Quantity;
   
+    enum GeometricType {
+      Unknown, Convex, Concave, ConvexToConcave, ConcaveToConvex
+    };
+    struct ConstIteratorComparator {
+      inline
+      bool operator()( const ConstIterator & it1, const ConstIterator & it2 ) const
+      {
+        return *it1 < *it2;
+      }
+    };
+    typedef std::map< ConstIterator, GeometricType, ConstIteratorComparator > GeometryMap;
+    typedef typename GeometryMap::const_iterator GeometryMapConstIterator;
+
 
     /**
      * Default Constructor.
@@ -110,7 +126,7 @@ namespace DGtal
      * 
      * @return the curvature estimation at this point.
      */
-    Quantity eval( const ConstIterator& it ) const;
+    Quantity eval( const ConstIterator& it );
 
     /** 
      * Computation of the curvature at all points in [itb, ite).
@@ -125,7 +141,7 @@ namespace DGtal
     template <typename OutputIterator>
     OutputIterator eval( ConstIterator itb,
 			 ConstIterator ite,
-			 OutputIterator ito ) const;
+			 OutputIterator ito );
 
  
     /**
@@ -153,13 +169,21 @@ namespace DGtal
     ///Boolean to make sure that init() has been called before eval().
     bool myIsInitBefore;
 
+    typedef typename IteratorCirculatorTraits<ConstIterator>::Value Point;
     typedef typename IteratorCirculatorTraits<ConstIterator>::Value::Coordinate Coordinate; 
     typedef ArithmeticalDSS<ConstIterator,Coordinate,4> DSSAlgorithm;
     typedef SaturatedSegmentation<DSSAlgorithm> Segmentation;
-
+    typedef typename Segmentation::SegmentComputerIterator SegmentationConstIterator;
+    typedef std::map<ConstIterator, SegmentationConstIterator, ConstIteratorComparator> MaximalSegmentsMap;
+    
     /// Memorizes the segmentation into maximal DSS.
     Segmentation* mySegmentation;
-      
+
+    /// Memorizes the convexity properties of the contour.
+    GeometryMap myGeometry;
+
+    /// The map : ConstIterator<Point> -> most centered MaximalSegment
+    MaximalSegmentsMap myMCMS;
     
   private:
 
@@ -180,6 +204,11 @@ namespace DGtal
 
     // ------------------------- Internals ------------------------------------
   private:
+
+    /// Determines convex and concave parts of the shape.
+    void computeGeometryMap();
+    /// Determines most centered maximal segments for each point.
+    void computeCenteredMaximalSegments();
 
   }; // end of class MinCircumcircleCurvatureEstimator
 

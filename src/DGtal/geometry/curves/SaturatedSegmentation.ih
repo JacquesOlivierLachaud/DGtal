@@ -261,6 +261,13 @@ DGtal::SaturatedSegmentation<TSegmentComputer>::SegmentComputerIterator::Segment
     myFlagIsLast( other.myFlagIsLast )
 {
 }
+template <typename TSegmentComputer>
+inline
+DGtal::SaturatedSegmentation<TSegmentComputer>::SegmentComputerIterator::SegmentComputerIterator
+()
+  : myFlagIsValid( false )
+{
+}
     
 
   template <typename TSegmentComputer>

@@ -267,6 +267,10 @@ namespace DGtal
       SegmentComputerIterator& operator=( const SegmentComputerIterator & aOther );
     
       /**
+       * Default constructor. The object is invalid.
+       */
+      SegmentComputerIterator();
+      /**
        * Destructor. Does nothing.
        */
       ~SegmentComputerIterator();

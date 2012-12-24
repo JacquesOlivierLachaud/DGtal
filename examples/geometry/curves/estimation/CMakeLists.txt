@@ -1,5 +1,6 @@
 SET(DGTAL_EXAMPLES_SRC
   exampleCurvature
+  exampleCurvature-2
 )
 
 

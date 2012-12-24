@@ -4,6 +4,7 @@ SET(DGTAL_EXAMPLES_SRC
   greedy-dss-decomposition
   ArithmeticalDSS
   convex-and-concave-parts
+  convex-and-concave-parts-2
   exampleGridCurve2d
   exampleGeometricalDSS
   exampleGeometricalDCA

@@ -29,6 +29,7 @@
 
 //////////////////////////////////////////////////////////////////////////////
 #include <cstdlib>
+#include "DGtal/shapes/fromPoints/CircleFrom3Points.h"
 //////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -64,30 +65,294 @@ init(const double h,
      const ConstIterator& itb, 
      const ConstIterator& ite )
 {
+  trace.beginBlock( "MinCircumcircleCurvatureEstimator::init" );
   myH = h;
   myBeginIt = itb;
   myEndIt = ite;
-  myIsInitBefore = true;
+  myIsInitBefore = myH > 0;
+  myGeometry.clear();
   if ( mySegmentation != 0 ) delete mySegmentation;
+  myMCMS.clear();
   // Computes the tangential cover of [itb, ite).
   DSSAlgorithm dssComputer;
   mySegmentation = new Segmentation( itb, ite, dssComputer );
+  computeGeometryMap();
+  computeCenteredMaximalSegments();
+  trace.endBlock();
+}
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+void
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+computeGeometryMap()
+{
+  trace.beginBlock( "MinCircumcircleCurvatureEstimator::computeGeometryMap" );
 
+  ASSERT( isValid() );
+
+  typedef std::vector< std::pair< ConstIterator, GeometricType > > GeometryVector;
+  typedef typename GeometryVector::const_iterator GeometryVectorConstIterator;
+  GeometryVector geometry;
+  ConstIterator last;
+  SegmentationConstIterator itb = mySegmentation->begin();
+  SegmentationConstIterator ite = mySegmentation->end();
+  for ( SegmentationConstIterator i = itb; i != ite; ++i) {
+    if ( (i.intersectNext() && i.intersectPrevious()) ) {
+      //end points
+      ConstIterator begin = i->begin();  --begin; 
+      ConstIterator end = i->end();
+      //parameters
+      int mu = i->getMu();
+      int omega = i->getOmega();
+      //configurations
+      ConstIterator itp;
+      if ( (i->getRemainder(begin)<=mu-1)&&
+           (i->getRemainder(end)<=mu-1) ) {                //concave
+        for ( itp = i->begin(); itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu+omega-1 )
+              {
+                geometry.push_back( std::make_pair( itp, Concave ) );
+                break;
+              }
+          }
+      } else if ( (i->getRemainder(begin)>=mu+omega)&&
+            (i->getRemainder(end)>=mu+omega) ) {           //convex
+        for ( itp = i->begin(); itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu )
+              {
+                geometry.push_back( std::make_pair( itp, Convex ) );
+                break;
+              }
+          }
+      } else if ( (i->getRemainder(begin)>=mu+omega)&&
+            (i->getRemainder(end)<=mu-1) ) {               //convex to concave
+        for ( itp = i->begin(); itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu )
+              {
+                geometry.push_back( std::make_pair( itp, ConvexToConcave ) );
+                break;
+              }
+          }
+        for ( ; itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu+omega-1 )
+              {
+                geometry.push_back( std::make_pair( itp, Concave ) );
+                break;
+              }
+          }
+      } else if ( (i->getRemainder(begin)<=mu-1)&&
+            (i->getRemainder(end)>=mu+omega) ) {           //concave to convex
+        for ( itp = i->begin(); itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu+omega-1 )
+              {
+                geometry.push_back( std::make_pair( itp, ConcaveToConvex ) );
+                break;
+              }
+          }
+        for ( ; itp != i->end(); ++itp )
+          {
+            if ( i->getRemainder( itp ) == mu )
+              {
+                geometry.push_back( std::make_pair( itp, Convex ) );
+                break;
+              }
+          }
+      } else {                                                    //pb
+      }
+    }
+    SegmentationConstIterator inext = boost::next( i );
+    // for open curves.
+    // if ( inext == ite ) last = i->end(); 
+  } 
+
+  // draw convexity for vertices.
+  ConstIterator itp = itb->begin();
+  GeometryVector allGeometry;
+  GeometricType tfill = geometry.back().second;
+  for ( GeometryVectorConstIterator itGeom = geometry.begin();
+        itGeom != geometry.end(); ++itGeom )
+    {
+      for ( ; ( itp != itGeom->first ) /*&& ( itp != last )*/; ++itp ) // for open curves
+        {
+          if ( allGeometry.empty() || ( allGeometry.back().first != itp ) )
+            allGeometry.push_back( std::make_pair( itp, tfill ) );
+          else 
+            allGeometry.back() = std::make_pair( itp, tfill );
+        }
+      tfill = itGeom->second;
+    }
+  for ( GeometryVectorConstIterator itGeom = allGeometry.begin(), itGeomEnd = allGeometry.end(); 
+        itGeom != itGeomEnd; ++itGeom ) 
+    {
+      myGeometry[ itGeom->first ] = itGeom->second;
+      trace.info() << "V=" << *(itGeom->first) << " is " << itGeom->second << std::endl;
+    }
+  trace.endBlock();
+}
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+void
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+computeCenteredMaximalSegments()
+{
+  trace.beginBlock( "MinCircumcircleCurvatureEstimator::computeCenteredMaximalSegments" );
+  ASSERT( isValid() );
+  std::vector< unsigned int > indices;
+  std::vector< ConstIterator > middlePoints;
+  trace.info() << "Computing size..." << std::endl;
+  unsigned int nb = 0;
+  for ( ConstIterator it = myBeginIt; it != myEndIt; ++it )
+    ++nb;
+  ConstIterator it = myBeginIt;
+  unsigned int i = 0;
+  unsigned int j = 0;
+  // First pass to find the middle point of each maximal segment.
+  trace.info() << "First pass to find the middle point of each maximal segment..." << std::endl;
+  for ( SegmentationConstIterator itSegm = mySegmentation->begin(),
+          itSegmEnd = mySegmentation->end(); itSegm != itSegmEnd; ++itSegm, ++j )
+    {
+      // trace.info() << "- Middle iterator of MS[" << j << "]"
+      //              << " b=" << *( itSegm->begin() ) 
+      //              << " e=" << *( itSegm->end() ) 
+      //              << std::endl;
+      ConstIterator itm = getMiddleIterator( itSegm->begin(), itSegm->end() );
+      trace.info() << "  is " << *itm << std::endl;
+      while ( it != itm )
+        { 
+          // trace.info() << "- current is " << *it 
+          //              << " begin=" << *myBeginIt
+          //              << " i=" << i
+          //              << std::endl;
+          ++it;
+          if ( it == myBeginIt ) i = 0;
+          else ++i;
+          // for open curves
+          // if ( it != myEndIt ) { ++it; ++i; }
+          // else { it = myBeginIt; i = 0; }
+        }
+      indices.push_back( i );
+      middlePoints.push_back( it );
+    }
+  // Second pass to determine all vertices.
+  trace.info() << "Second pass to determine all vertices..." << std::endl;
+  SegmentationConstIterator itSegm = mySegmentation->begin();
+  for ( unsigned int j = 0; j < indices.size(); ++j )
+    {
+      unsigned int j2 = ( j + 1 ) % indices.size();
+      unsigned int n = ( indices[ j ] <= indices[ j2 ] ) 
+        ? ( indices[ j2 ] - indices[ j ] + 1 ) / 2
+        : ( nb + indices[ j2 ] - indices[ j ] + 1 ) / 2;
+      if ( n == 0 )
+        {
+          trace.info() << "Error: n should be > 0." << std::endl;
+          ++itSegm;
+        }
+      for ( it = middlePoints[ j ]; 
+            it != middlePoints[ j2 ]; 
+            ++it )
+            // open curves
+            //     it = ( it == myEndIt ) ? myBeginIt : boost::next( it ) )
+        {
+          if ( n > 0 ) 
+            { 
+              myMCMS[ it ] = itSegm;
+              --n;
+              if ( n == 0 ) ++itSegm;
+            }
+          else
+            myMCMS[ it ] = itSegm;
+        }
+    }
+  trace.endBlock();
+}
+ 
+//-----------------------------------------------------------------------------
+template <typename TConstIterator>
+inline
+typename DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::Quantity
+DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
+eval( const ConstIterator& it )
+{
+  ASSERT( isValid() ); 
+
+  Quantity curv = NumberTraits<Quantity>::ZERO;
+  // Get most centered maximal segment.
+  SegmentationConstIterator itSegm = myMCMS[ it ];
+  GeometricType t = myGeometry[ it ];
+  if ( ( t != Convex ) && ( t != Concave ) )
+    return curv;
+  trace.beginBlock( "MinCircumcircleCurvatureEstimator::eval( it )" );
+  // Find first points outside segment.
+  ConstIterator it1 = itSegm->begin(); 
+  if ( it1 == myBeginIt ) it1 = myEndIt;
+  --it1; // point before
+  GeometricType t1 = myGeometry[ it1 ];
+  while ( ( t1 == t ) 
+          || ( ( t1 == ConcaveToConvex ) && ( t == Convex ) )
+          || ( ( t1 == ConvexToConcave ) && ( t == Concave ) ) )
+    {
+      ConstIterator it2 = itSegm->end();
+      ++it2;
+      if ( it2 == myEndIt ) it2 = myBeginIt; // point after
+      GeometricType t2 = myGeometry[ it2 ];
+      while ( ( t2 == t ) 
+          || ( ( t2 == ConcaveToConvex ) && ( t == Concave ) )
+          || ( ( t2 == ConvexToConcave ) && ( t == Convex ) ) )
+        {
+          // Compute curvatures between three points.
+          CircleFrom3Points<Point> circle( *it1, *it, *it2 );
+          Quantity ncurv = circle.getCurvature();
+          ASSERT( ncurv != 0.0 );
+          if ( ncurv > curv ) curv = ncurv;
+
+          ++it2;
+          if ( it2 == myEndIt ) it2 = myBeginIt; // point after
+          t2 = myGeometry[ it2 ];
+        }
+      // Go to point before.
+      if ( it1 == myBeginIt ) it1 = myEndIt;
+      --it1; // point before
+      t1 = myGeometry[ it1 ];
+    }
+  curv = ( t == Convex ) ? -curv / myH : curv / myH;
+  trace.info() << "- Kappa[" << *it << "] = " << curv << std::endl;
+  trace.endBlock();
+  return curv;
 }
 //-----------------------------------------------------------------------------
 template <typename TConstIterator>
 template <typename OutputIterator>
 inline
-typename DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::Quantity
+OutputIterator
 DGtal::MinCircumcircleCurvatureEstimator<TConstIterator>::
 eval( ConstIterator itb,
       ConstIterator ite,
-      OutputIterator ito ) const
+      OutputIterator ito )
 {
-  ASSERT(myH > 0);
-  ASSERT(myIsInitBefore);
+  ASSERT( isValid() ); 
   if ( isEmpty( myBeginIt, myEndIt ) ) return ito;
 
+  trace.beginBlock( "MinCircumcircleCurvatureEstimator::eval( itb, ite, ito )" );
+  // do-while loop to deal with the case of a whole circular range
+  if (isNotEmpty(itb, ite))
+    {
+      ConstIterator it = itb; 
+      do
+        {
+          *ito++ = eval( it );
+          ++it; 
+        } 
+      while (it != ite);
+    }
+  trace.endBlock();
+  return ito; 
 }
 
 
