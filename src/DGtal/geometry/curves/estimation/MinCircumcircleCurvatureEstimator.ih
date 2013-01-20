@@ -272,7 +272,6 @@ computeCenteredMaximalSegments()
     }
   trace.endBlock();
 }
- 
 //-----------------------------------------------------------------------------
 template <typename TConstIterator>
 inline
