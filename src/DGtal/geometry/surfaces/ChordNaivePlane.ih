@@ -18,6 +18,9 @@
  * @file ChordNaivePlane.ih
  * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
  * Laboratory of Mathematics (CNRS, UMR 5127), University of Savoie, France
+ * @author Yan Gérard
+ * @author Isabelle Debled-Rennesson
+ * @author Paul Zimmermann
  *
  * @date 2012/09/20
  *
@@ -222,7 +225,9 @@ extend( const Point & p )
                 newCurrentSegment( _state, M );
               else
                 newCurrentTriangle( _state, M );
-              std::cerr << "(loop=" << loop << ") " << *this << std::endl;
+              std::cerr << "(loop=" << loop << ") ";
+              selfDisplay( std::cerr, _state );
+              std::cerr << std::endl;
               computeNormal( _state );
             }
         }
@@ -420,16 +425,29 @@ inline
 void
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::selfDisplay ( std::ostream & out ) const
 {
+  selfDisplay( out, myState );
+}
+/**
+ * Writes/Displays the object on an output stream.
+ * @param out the output stream where the object is written.
+ */
+template <typename TPoint, typename TInternalScalar>
+inline
+void
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::selfDisplay ( std::ostream & out, const State & state ) const
+{
   double min, max;
   double N[ 3 ];
   out << "[ChordNaivePlane"
       << " axis=" << z << " w=" << myWidth0 << "/" << myWidth1
       << " size=" << size() 
-      << " N=(" << myState.N[ 0 ] << "," << myState.N[ 1 ] << "," << myState.N[ 2 ] << ")"  
-      << " A=(" << myState.A[ 0 ] << "," << myState.A[ 1 ] << "," << myState.A[ 2 ] << ")"  
-      << " B=(" << myState.B[ 0 ] << "," << myState.B[ 1 ] << "," << myState.B[ 2 ] << ")"  
-      << " C=(" << myState.C[ 0 ] << "," << myState.C[ 1 ] << "," << myState.C[ 2 ] << ")"  
-      << " #=" << myState.nbValid
+      << " N=(" << state.N[ 0 ] << "," << state.N[ 1 ] << "," << state.N[ 2 ] << ")"  
+      << " A=(" << state.A[ 0 ] << "," << state.A[ 1 ] << "," << state.A[ 2 ] << ")"  
+      << " B=(" << state.B[ 0 ] << "," << state.B[ 1 ] << "," << state.B[ 2 ] << ")"  
+      << " C=(" << state.C[ 0 ] << "," << state.C[ 1 ] << "," << state.C[ 2 ] << ")"  
+      << " #=" << state.nbValid
+      << " min=" << state.min
+      << " max=" << state.max
       << ": ";
   this->getUnitNormal( N );
   this->getBounds( min, max );
@@ -722,7 +740,7 @@ DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 newCurrentSegment( State & state, const Point & M ) const
 {
   if ( internalDot( state.A, state.N ) < internalDot( M, state.N ) )
-    state.A = M;
+    state.A = M; // either M or M - state.A may induce infinite loops.
   else
     {    
       std::cerr << "[ChordNaivePlane::newCurrentSegment]"

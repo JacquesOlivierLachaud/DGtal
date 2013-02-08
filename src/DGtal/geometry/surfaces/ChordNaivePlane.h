@@ -410,6 +410,7 @@ namespace DGtal
      * @param out the output stream where the object is written.
      */
     void selfDisplay ( std::ostream & out ) const;
+    void selfDisplay ( std::ostream & out, const State & state ) const;
 
     /**
      * Checks the validity/consistency of the object.
