@@ -1,6 +1,7 @@
 
 SET(TESTS_SURFACES_SRC
  testNormalVectorEstimatorEmbedder
+ testChordNaivePlane
 )
 
 FOREACH(FILE ${TESTS_SURFACES_SRC})
