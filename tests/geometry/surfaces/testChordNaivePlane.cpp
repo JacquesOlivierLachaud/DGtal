@@ -271,7 +271,7 @@ bool testChordNaivePlane()
     trace.beginBlock ( "Testing block: ChordNaivePlane vertical instantiation." );
     NaivePlane plane;
     Point pt0( 0, 0, 0 );
-    plane.init( 2, 3, 2 );
+    plane.init( 2, 5, 2 );
     bool pt0_inside = plane.extend( pt0 );
     ++nb, nbok += pt0_inside == true ? 1 : 0;
     trace.info() << "(" << nbok << "/" << nb << ") Plane=" << plane
@@ -284,6 +284,16 @@ bool testChordNaivePlane()
     Point pt2( 0, 0, 1 );
     bool pt2_inside = plane.extend( pt2 );
     ++nb, nbok += pt2_inside == true ? 1 : 0;
+    trace.info() << "(" << nbok << "/" << nb << ") Plane=" << plane
+                 << std::endl;
+    Point pt3 = pt1 + Point( 0, 0, 1 );
+    bool pt3_inside = plane.extend( pt3 );
+    ++nb, nbok += pt3_inside == true ? 1 : 0;
+    trace.info() << "(" << nbok << "/" << nb << ") Plane=" << plane
+                 << std::endl;
+    Point pt4 = pt3 + Point( 0, 0, 1 );
+    bool pt4_inside = plane.extend( pt4 );
+    ++nb, nbok += pt4_inside == true ? 1 : 0;
     trace.info() << "(" << nbok << "/" << nb << ") Plane=" << plane
                  << std::endl;
     trace.endBlock();
@@ -321,6 +331,8 @@ int main( int /*argc*/, char** /*argv*/ )
   trace.beginBlock ( "Testing class ChordNaivePlane" );
   bool res = true 
     && testChordNaivePlane()
+    && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 4, 100, 200 )
+    && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 8, 100, 200 )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 20, 100, 200 )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 100, 100, 200 )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int64_t> >( 2000, 100, 200 );
