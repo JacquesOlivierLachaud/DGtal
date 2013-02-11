@@ -530,7 +530,8 @@ setUpNormal1( State & state ) const
   state.A.reset(); 
   state.B.reset(); 
   state.C.reset();
-  computeNormal( state );
+  state.N[ x ] = state.N[ y ] = NumberTraits<InternalScalar>::ZERO;
+  state.N[ z ] = NumberTraits<InternalScalar>::ONE;
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -541,11 +542,12 @@ setUpNormal2( State & state ) const
   state.N[ x ] = state.N[ y ] = NumberTraits<InternalScalar>::ZERO;
   state.N[ z ] = NumberTraits<InternalScalar>::ONE;
   state.A = state.B - state.A;
-  // internalCross( state.C, state.A, state.N );
+  // 3 next lines compute internalCross( state.C, state.A, state.N );
   state.C[ x ] = state.A[ y ];
   state.C[ y ] = -state.A[ x ];
   state.C[ z ] = 0;
-  if ( ( state.C[ x ] != 0 ) || ( state.C[ y ] != 0 ) ) // v is zero iff _state.A is aligned with main axis
+  if ( ( state.C[ x ] != 0 ) || ( state.C[ y ] != 0 ) ) 
+    // zero iff _state.A is aligned with main axis
     internalCross( state.N, state.C, state.A );
   state.B = -state.A - state.C;
   if ( state.N[ z ] < 0 ) {
@@ -556,10 +558,6 @@ setUpNormal2( State & state ) const
     state.A = state.B;
     state.B = M;
   }
-  // state.A = state.A[ z ] >= state.B[ z ] ? state.A - state.B : state.B - state.A;
-  // state.B.reset(); 
-  // state.C.reset();
-  // computeNormal( state );
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -703,39 +701,24 @@ void
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 computeNormal( State & state ) const
 {
-  InternalVector v;
-  switch ( state.nbValid ) {
-  case 1:
-      state.N[ x ] = state.N[ y ] = NumberTraits<InternalScalar>::ZERO;
-      state.N[ z ] = NumberTraits<InternalScalar>::ONE;
-      break;
-  case 2:
-    // std::cerr << "Should not go there..." << std::endl;
-    //   state.N[ x ] = state.N[ y ] = NumberTraits<InternalScalar>::ZERO;
-    //   state.N[ z ] = NumberTraits<InternalScalar>::ONE;
-    //   internalCross( v, state.N, state.A );
-    //   if ( ( v[ 0 ] != 0 ) || ( v[ 1 ] != 0 ) || ( v[ 2 ] != 0 ) ) // v is zero iff _state.A is aligned with main axis
-    //     internalCross( state.N, state.A, v );
-    //   break;
-  default: // 3
-    internalCross( state.N, state.B - state.A, state.C - state.A );
-    if ( state.N[ z ] < 0 ) {
-      state.N[ 0 ] = -state.N[ 0 ];
-      state.N[ 1 ] = -state.N[ 1 ];
-      state.N[ 2 ] = -state.N[ 2 ];
-      Point M = state.A;
-      state.A = state.B;
-      state.B = M;
-    }
+  ASSERT( state.nbValid >= 2 );
+  // InternalVector v;
+  // switch ( state.nbValid ) {
+  // case 1:
+  //     state.N[ x ] = state.N[ y ] = NumberTraits<InternalScalar>::ZERO;
+  //     state.N[ z ] = NumberTraits<InternalScalar>::ONE;
+  //     break;
+  // case 2:
+  // default: // 3
+  internalCross( state.N, state.B - state.A, state.C - state.A );
+  if ( state.N[ z ] < 0 ) {
+    state.N[ 0 ] = -state.N[ 0 ];
+    state.N[ 1 ] = -state.N[ 1 ];
+    state.N[ 2 ] = -state.N[ 2 ];
+    Point M = state.A;
+    state.A = state.B;
+    state.B = M;
   }
-  // std::cout << "computeNormal: #=" << state.nbValid
-  //           << " A=" << state.A 
-  //           << " B=" << state.B
-  //           << " C=" << state.C
-  //           << " N=[" << state.N[ 0 ]
-  //           << "," << state.N[ 1 ]
-  //           << "," << state.N[ 2 ]
-  //           << "]" << std::endl;
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -753,6 +736,7 @@ bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 newCurrentTriangle( State & state, const Point & M ) const
 {
+  ASSERT( state.nbValid >= 2 );
   int da =  signDelta( state.A, M ); // A, O, M
   int db =  signDelta( state.B, M ); // B, O, M
   int dc =  signDelta( state.C, M ); // C, O, M
@@ -785,22 +769,6 @@ newCurrentTriangle( State & state, const Point & M ) const
               << " cannot find a triangle cutting the main axis" << std::endl;
     return false;
   }
-  return true;
-}
-//-----------------------------------------------------------------------------
-template <typename TPoint, typename TInternalScalar>
-bool
-DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
-newCurrentSegment( State & state, const Point & M ) const
-{
-  if ( internalDot( state.A, state.N ) < internalDot( M, state.N ) )
-    state.A = M; // either M or M - state.A may induce infinite loops.
-  else
-    {    
-      std::cerr << "[ChordNaivePlane::newCurrentSegment]"
-                << " cannot find a segment cutting the main axis" << std::endl;
-      return false;
-    }
   return true;
 }
 

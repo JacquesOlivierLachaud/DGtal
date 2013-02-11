@@ -17,29 +17,26 @@
 #pragma once
 
 /**
- * @file ChordNaivePlane.h
+ * @file ChordGenericNaivePlane.h
  * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
  * Laboratory of Mathematics (CNRS, UMR 5127), University of Savoie, France
- * @author Yan Gérard
- * @author Isabelle Debled-Rennesson
- * @author Paul Zimmermann
  *
  * @date 2012/09/20
  *
- * Header file for module ChordNaivePlane.cpp
+ * Header file for module ChordGenericNaivePlane.cpp
  *
  * This file is part of the DGtal library.
  */
 
-#if defined(ChordNaivePlane_RECURSES)
-#error Recursive header files inclusion detected in ChordNaivePlane.h
-#else // defined(ChordNaivePlane_RECURSES)
+#if defined(ChordGenericNaivePlane_RECURSES)
+#error Recursive header files inclusion detected in ChordGenericNaivePlane.h
+#else // defined(ChordGenericNaivePlane_RECURSES)
 /** Prevents recursive inclusion of headers. */
-#define ChordNaivePlane_RECURSES
+#define ChordGenericNaivePlane_RECURSES
 
-#if !defined ChordNaivePlane_h
+#if !defined ChordGenericNaivePlane_h
 /** Prevents repeated inclusion of headers. */
-#define ChordNaivePlane_h
+#define ChordGenericNaivePlane_h
 
 //////////////////////////////////////////////////////////////////////////////
 // Inclusions
@@ -47,30 +44,31 @@
 #include <set>
 #include "DGtal/base/Common.h"
 #include "DGtal/kernel/CInteger.h"
+#include "DGtal/kernel/CSpace.h"
+#include "DGtal/kernel/SpaceND.h"
+#include "DGtal/kernel/PointVector.h"
+#include "DGtal/arithmetic/IntegerComputer.h"
+#include "DGtal/geometry/surfaces/ChordNaivePlane.h"
 //////////////////////////////////////////////////////////////////////////////
 
 namespace DGtal
 {
 
   /////////////////////////////////////////////////////////////////////////////
-  // template class ChordNaivePlane
+  // template class ChordGenericNaivePlane
   /**
-   * Description of template class 'ChordNaivePlane'. \brief Aim: A
-   * class that contains the chord-based algorithm for recognizing
-   * pieces of digital planes of given axis width [ Gerard,
-   * Debled-Rennesson, Zimmermann, 2005 ]. When the width is 1, it
-   * corresponds to naive planes. The axis is specified at
-   * initialization of the object. 
-   *
-   * This class is an implementation of Gerard, Debled-Rennesson,
-   * Zimmermann, 2005: An elementary digital plane recognition
-   * algorithm, @cite Gerard_2005_dam.
+   * Description of template class 'ChordGenericNaivePlane' <p> \brief
+   * Aim: A class that recognizes pieces of digital planes of given
+   * axis width. When the width is 1, it corresponds to naive
+   * planes. Contrary to ChordNaivePlane, the axis is \b not specified
+   * at initialization of the object. This class uses three instances
+   * of ChordNaivePlane, one per axis.
    *
    * As a (3D) geometric primitive, it obeys to a subset of the
    * concept CSegmentComputer. It is copy constructible,
    * assignable. It is iterable (inner type ConstIterator, begin(),
-   * end()). It has methods \ref extend(), extend( InputIterator,
-   * InputIterator) and \ref isExtendable(),
+   * end()). You may clear() it. It has methods \ref extend(), extend(
+   * InputIterator, InputIterator) and \ref isExtendable(),
    * isExtendable(InputIterator, InputIterator).  The object stores
    * all the distinct points \c p such that 'extend( \c p )' was
    * successful. It is thus a model of boost::ForwardContainer (non
@@ -79,16 +77,9 @@ namespace DGtal
    * It is also a model of CPointPredicate (returns 'true' iff a point
    * is within the current bounds).
    *
-   * \par Note on complexity: 
-   * According to the paper, the worst-case complexity is \f$ O(n^7)
-   * \f$ (in its non-incremental form). However, the observed complexity is quasi-linear. 
-   *
-   * \par Note on execution times: 
-   * The user should favor int32_t or int64_t instead of BigInteger
-   * whenever possible. When the point components are smaller than
-   * 14000, int32_t are sufficient. For point components smaller than
-   * 440000000, int64_t are sufficient. For greater diameters, it is
-   * necessary to use BigInteger.
+   * Note on complexity: See ChordNaivePlane. Although it uses three
+   * instances of ChordNaivePlane, the recognition is \b not three
+   * times slower. Indeed, recognition stops quickly on bad axes.
    *
    * @tparam TPoint specifies the type of input points (digital or not). 
    *
@@ -100,9 +91,9 @@ namespace DGtal
    *
    @code
    typedef SpaceND<3,int> Z3;
-   typedef ChordNaivePlane< Z3::Point, int64_t > NaivePlane;
+   typedef ChordGenericNaivePlane< Z3::Point, int64_t > NaivePlane;
    NaivePlane plane;
-   plane.init( 2, 1, 1 ); // axis is z, width is 1/1 => naive 
+   plane.init( 1, 1 ); // width is 1/1 => naive 
    plane.extend( Point( 10, 0, 0 ) ); // return 'true'
    plane.extend( Point( 0, 8, 0 ) );  // return 'true'
    plane.extend( Point( 0, 0, 6 ) );  // return 'true'
@@ -113,11 +104,10 @@ namespace DGtal
    * Model of boost::DefaultConstructible, boost::CopyConstructible,
    * boost::Assignable, boost::ForwardContainer, CPointPredicate.
    */
-  template < typename TPoint, 
+  template < typename TPoint,
              typename TInternalScalar >
-  class ChordNaivePlane
+  class ChordGenericNaivePlane
   {
-
     // BOOST_CONCEPT_ASSERT(( CPoint< TPoint > ));
     BOOST_CONCEPT_ASSERT(( CSignedNumber< TInternalScalar > ));
     BOOST_STATIC_ASSERT(( TPoint::dimension == 3 ));
@@ -147,48 +137,40 @@ namespace DGtal
 
     // ----------------------- internal types ------------------------------
   private:
-    /**
-       Defines the state of the algorithm, the part of the data that
-       may change after initialization of the ChordNaivePlane
-       object. Only the set of points is not stored here.
-    */
-    struct State {
-      InternalScalar height;   /**< current height of the topmost point. */
-      Point A,B,C;             /**< current triangle, A topmost. */
-      InternalVector N;        /**< current normal vector, i.e. (a,b,c). */
-      Point ptMax;             /**< 3D point giving the max dot product. */
-      Point ptMin;             /**< 3D point giving the min dot product. */
-      InternalScalar max;      /**< current max dot product value, i.e. <= mu + c. */
-      InternalScalar min;      /**< current min dot product value, i.e. mu by convention. */
-      unsigned int nbValid;    /**< 0 when object is initialized, 1 when points are aligned with main axis, 2 when points form a triangle containing the main axis direction, 3 when there are at least 3 points that form a triangle not aligned with the main axis direction. */
-    };
-
+    typedef ChordNaivePlane< Point, InternalScalar > ChordComputer;
+    typedef std::vector<Dimension>::iterator AxisIterator;
+    typedef std::vector<Dimension>::const_iterator AxisConstIterator;
     // ----------------------- Standard services ------------------------------
   public:
 
     /**
      * Destructor.
      */
-    ~ChordNaivePlane();
+    ~ChordGenericNaivePlane();
 
     /**
      * Constructor. The object is not valid and should be initialized.
      * @see init
      */
-    ChordNaivePlane();
+    ChordGenericNaivePlane();
 
     /**
      * Copy constructor.
      * @param other the object to clone.
      */
-    ChordNaivePlane ( const ChordNaivePlane & other );
+    ChordGenericNaivePlane ( const ChordGenericNaivePlane & other );
 
     /**
      * Assignment.
      * @param other the object to copy.
      * @return a reference on 'this'.
      */
-    ChordNaivePlane & operator= ( const ChordNaivePlane & other );
+    ChordGenericNaivePlane & operator= ( const ChordGenericNaivePlane & other );
+
+    /**
+       @return an active axis (or the active axis when there is only one).
+    */
+    Dimension active() const;
 
     /**
      * Clear the object, free memory. The plane keeps its main axis,
@@ -202,8 +184,6 @@ namespace DGtal
      * accept new points for recognition. Calls clear so that the
      * object is ready to be extended.
      *
-     * @param axis the main axis (0,1,2) for x, y or z.
-     *
      * @param widthNumerator the maximal axis-width (x,y,or z) for the
      * plane is defined as the rational number \a widthNumerator / \a
      * widthDenominator (default is 1/1, i.e. naive plane).
@@ -212,8 +192,7 @@ namespace DGtal
      * the plane is defined as the rational number \a widthNumerator /
      * \a widthDenominator (default is 1/1, i.e. naive plane).
      */
-    void init( Dimension axis,
-               InternalScalar widthNumerator = NumberTraits< InternalScalar >::ONE, 
+    void init( InternalScalar widthNumerator = NumberTraits< InternalScalar >::ONE, 
                InternalScalar widthDenominator = NumberTraits< InternalScalar >::ONE );
 
     //-------------------- model of ForwardContainer -----------------------------
@@ -258,7 +237,7 @@ namespace DGtal
 
     /**
      * Checks if the point \a p is in the current digital
-     * plane. Therefore, a ChordNaivePlane is a model of
+     * plane. Therefore, a ChordGenericNaivePlane is a model of
      * CPointPredicate.
      *
      * @param p any 3D point.
@@ -387,26 +366,6 @@ namespace DGtal
      */
     const Point & maximalPoint() const;
 
-    // ----------------------- Utilities --------------------------------------
-  public:
-
-    /**
-       Inner product with potentially better precision.
-       @param u any vector
-       @param v any vector
-     */
-    template <typename TVector1, typename TVector2>
-    static InternalScalar internalDot( const TVector1 & u, const TVector2 & v );
-
-    /**
-       Cross product with potentially better precision.
-       @param n [out] the vector that stores the cross product of u and v.
-       @param u any vector
-       @param v any vector
-     */
-    template <typename TVector1, typename TVector2>
-    static void internalCross( InternalVector & n, const TVector1 & u, const TVector2 & v );
-
     // ----------------------- Interface --------------------------------------
   public:
 
@@ -424,236 +383,39 @@ namespace DGtal
 
     // ------------------------- Private Datas --------------------------------
   private:
-    Dimension z;               /**< the main axis used in all subsequent computations. */
-    Dimension x,y;             /**< the two other axes used in all subsequent computations. */
-    InternalScalar myWidth0;   /**< the plane width as a positive rational number myWidth0/myWidth1 */
-    InternalScalar myWidth1;   /**< the plane width as a positive rational number myWidth0/myWidth1 */
-    mutable PointSet myPointSet;/**< the set of points within the plane, mutable since its state may temporarily be changed during some computations. */ 
-    State myState;             /**< the current state that defines the plane being recognized. */
-    mutable State _state;      /**< Temporary state used in computations. */
-    mutable InternalScalar _d; /**< temporary variable used in some computations. */
+    std::vector<Dimension> myAxes; /**< The list of active plane axes. Starts with {0,1,2}. At least one. */
+    ChordComputer myComputers[ 3 ]; /**< The three COBA plane computers. */
+    mutable std::vector<Dimension> _axesToErase; /**< Useful when erasing axes. */
     // ------------------------- Hidden services ------------------------------
   protected:
 
 
     // ------------------------- Internals ------------------------------------
   private:
-
-    /**
-     * Computes the min and max values/arguments of the scalar product
-     * between the normal state.N and the points in the range
-     * [itB,itE). Overwrites state.min, state.max at the start.
-     *
-     * @tparam TInputIterator any model of InputIterator.
-     * @param state (modified) the state where the normal N is used in
-     * computation and where fields state.min, state.max,
-     * state.ptMin, state.ptMax are updated.
-     *
-     * @param itB an input iterator on the first point of the range.
-     * @param itE an input iterator after the last point of the range.
-     */
-    template <typename TInputIterator>
-    void computeMinMax( State & state, TInputIterator itB, TInputIterator itE ) const;
-
-    /**
-     * Updates the min and max values/arguments of the scalar product
-     * between the normal state.N and the points in the range
-     * [itB,itE). Do not overwrite state.min, state.max at the start.
-     *
-     * @tparam TInputIterator any model of InputIterator.
-     *
-     * @param state (modified) the state where the normal N is used in
-     * computation and where fields state.min, state.max,
-     * state.ptMin, state.ptMax are updated.
-     *
-     * @param itB an input iterator on the first point of the range.
-     * @param itE an input iterator after the last point of the range.
-     * @return 'true' if any of the fields state.min, state.max,
-     * state.ptMin, state.ptMax have been updated, 'false'
-     * otherwise.
-     */
-    template <typename TInputIterator>
-    bool updateMinMax( State & state, TInputIterator itB, TInputIterator itE ) const;
-
-    /**
-     * @param state the state where the normal state.N, the scalars state.min and state.max are used in
-     * computations.
-     *
-     * @return 'true' if the current width along state.N (computed
-     * from the difference of state.max and state.min) is strictly
-     * inferior to the maximal specified width (in myWidth), 'false'
-     * otherwise.
-     */
-    bool checkPlaneWidth( const State & state ) const;
-
-    /**
-       Sets up a consistent state with only one point.
-       @param p1 any point.
-    */
-    bool setUp1( const Point & p1 );
-
-    /**
-       Sets up a consistent initial normal direction given the output
-       of findTriangle (state.nbValid, state.A, state.B, state.C). 
-    */
-    void setUpNormal( State & state ) const;
-
-    /**
-       Sets up a consistent initial normal direction given the output
-       of findTriangle (state.nbValid == 1).
-    */
-    void setUpNormal1( State & state ) const;
-
-    /**
-       Sets up a consistent initial normal direction given the output
-       of findTriangle (state.nbValid == 2, state.A).
-    */
-    void setUpNormal2( State & state ) const;
-
-    /**
-       Sets up a consistent initial normal direction given the output
-       of findTriangle (state.nbValid == 3, state.A, state.B, state.C). 
-    */
-    void setUpNormal3( State & state ) const;
-
-    /**
-       Computes the orientation of vectors AB and AC viewed from the
-       main axis vector. It is the sign of the 2D determinant of AB
-       and AC.
-       @param A any point.
-       @param B any point.
-       @param C any point.
-
-       @return the sign of det(ab,ac), where a,b,c are the 2d
-       projections of A,B,C along main axis.
-    */
-    int signDelta( const Point & A, const Point & B, const Point & C ) const;
-
-    /**
-       Computes the orientation of vectors AO and AC viewed from the
-       main axis vector. It is the sign of the 2D determinant of AO
-       and AC, where O is the origin.
-       @param A any point.
-       @param C any point.
-
-       @return the sign of det(ao,ac), where a,o,c are the 2d
-       projections of A,O,C along main axis.
-    */
-    int signDelta( const Point & A, const Point & C ) const;
-
-    /**
-       Puts in (A,B,C) the new current triangle. We choose the
-       triangle of the tetrahedron A,B,C,M having the highest
-       intersection with Oz. 
-
-       @param state the current state of the algorithm, state.A,
-       state.B and state.C should represent the current triangle.
-
-       @param M should be the vector P2-P1, where P2 is the point
-       maximizing the dot product with the normal and P1 is the point
-       minimizing the same dot product.
-
-       @return 'true' if a consistent new triangle was found, 'false'
-       if error (M was not correct in this case).
-
-       @pre state.nbValid >= 2
-
-    */
-    bool newCurrentTriangle( State & state, const Point & M ) const;
-
-    /**
-       @tparam TInputIterator any model of boost::InputIterator on Point.
-
-       Initializes the Chord algorithm by determining an initial
-       triangle of the convex chord set (S+(-S)) if S is the set of
-       points. If points have special alignment with the main axis, it
-       may not return a triangle.
-
-       @param[in] itB the beginning of the range of input points.
-       @param[in] itE the end of the range of input points.
-
-       @param[out] state contains the points forming a triangle not
-       containing the main axis (state.A, state.B, state.C) if one was
-       found, otherwise a segment not containing the main axis
-       (state.A, state.B), otherwise the first point (state.A).
-
-       @return 0 if object is initialized and there is no points, 1
-       when all points are aligned with main axis, 2 when all points
-       form a triangle containing the main axis direction, 3 when
-       there are at least 3 points that form a triangle not aligned
-       with the main axis direction.
-    */
-    template <typename TInputIterator>
-    unsigned int findTriangle( State & state, TInputIterator itB, TInputIterator itE ) const;
-
-    /**
-       @param p1 any point.
-       @param p2 any point.
-       @return 'true' iff the two points form a vector aligned with the main axis.
-     */
-    bool alignedAlongAxis( const Point & p1, const Point & p2 ) const;
-
-    /**
-       @param[in,out] state the field state.height is updated and
-       contains the main axis height of the current triangle.
-    */
-    void computeHeight( State & state ) const;
-    
-    /**
-       Computes a new normal according to the given values of state.A, state.B, state.C.
-
-       @param[in,out] state the field state.normal is updated and
-       contains the new normal.
-
-       @pre state.nbValid >= 2
-     */
-    void computeNormal( State & state ) const;
-
-    /**
-       @param[in,out] state the current state of the algorithm (fields
-       state.min, state.max, state.height are used)
-
-       @return 'true' iff the current state indicates that the set of
-       points is included between two planes of axis width smaller
-       than the width specified at initialization. It is the value:
-       state.max - state.min <= state.height.
-
-       @see init
-     */
-    bool checkWidth( const State & state ) const;
-
-    /**
-     * Writes/Displays the object on an output stream (debug purposes).
-     * @param out the output stream where the object is written.
-     * @param state a given state for the display.
-     */
-    void selfDisplay ( std::ostream & out, const State & state ) const;
-
-
-  }; // end of class ChordNaivePlane
+  }; // end of class ChordGenericNaivePlane
 
 
   /**
-   * Overloads 'operator<<' for displaying objects of class 'ChordNaivePlane'.
+   * Overloads 'operator<<' for displaying objects of class 'ChordGenericNaivePlane'.
    * @param out the output stream where the object is written.
-   * @param object the object of class 'ChordNaivePlane' to write.
+   * @param object the object of class 'ChordGenericNaivePlane' to write.
    * @return the output stream after the writing.
    */
   template <typename TPoint, typename TInternalScalar>
   std::ostream&
-  operator<< ( std::ostream & out, const ChordNaivePlane<TPoint, TInternalScalar> & object );
+  operator<< ( std::ostream & out, const ChordGenericNaivePlane<TPoint, TInternalScalar> & object );
 
 } // namespace DGtal
 
 
 ///////////////////////////////////////////////////////////////////////////////
 // Includes inline functions.
-#include "DGtal/geometry/surfaces/ChordNaivePlane.ih"
+#include "DGtal/geometry/surfaces/ChordGenericNaivePlane.ih"
 
 //                                                                           //
 ///////////////////////////////////////////////////////////////////////////////
 
-#endif // !defined ChordNaivePlane_h
+#endif // !defined ChordGenericNaivePlane_h
 
-#undef ChordNaivePlane_RECURSES
-#endif // else defined(ChordNaivePlane_RECURSES)
+#undef ChordGenericNaivePlane_RECURSES
+#endif // else defined(ChordGenericNaivePlane_RECURSES)
