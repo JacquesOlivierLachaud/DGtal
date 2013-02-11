@@ -161,6 +161,121 @@ checkPlane( Integer a, Integer b, Integer c, Integer d,
   return nb == nbok;
 }
 
+/**
+ * Checks the naive plane d <= ax+by+cz <= d + max(|a|,|b|,|c|)-1
+ */
+template <typename Integer, typename NaivePlane>
+bool
+checkPlaneGroupExtension( Integer a, Integer b, Integer c, Integer d, 
+                          unsigned int diameter, unsigned int nbtries )
+{
+  typedef typename NaivePlane::Point Point;
+  typedef typename Point::Component PointInteger;
+  IntegerComputer<Integer> ic;
+  Integer absA = ic.abs( a );
+  Integer absB = ic.abs( b );
+  Integer absC = ic.abs( c );
+  Integer x, y, z;
+  Dimension axis;
+  if ( ( absA >= absB ) && ( absA >= absC ) )
+    axis = 0;
+  else if ( ( absB >= absA ) && ( absB >= absC ) )
+    axis = 1;
+  else
+    axis = 2;
+  Point p;
+  NaivePlane plane;
+  plane.init( axis, 1, 1 );
+  // Checks that points within the naive plane are correctly recognized.
+  unsigned int nb = 0;
+  unsigned int nbok = 0;
+  while ( nb < nbtries )
+    {
+      std::vector<Point> points( 5 );
+      for ( unsigned int i = 0; i < 5; ++i )
+        {
+          Point & p = points[ i ];
+          p[ 0 ] = getRandomInteger<PointInteger>( -diameter+1, diameter ); 
+          p[ 1 ] = getRandomInteger<PointInteger>( -diameter+1, diameter ); 
+          p[ 2 ] = getRandomInteger<PointInteger>( -diameter+1, diameter );
+          x = (Integer) p[ 0 ];
+          y = (Integer) p[ 1 ];
+          z = (Integer) p[ 2 ];
+          switch ( axis ) {
+          case 0: p[ 0 ] = NumberTraits<Integer>::castToInt64_t
+              ( ic.ceilDiv( d - b * y - c * z, a ) ); break;
+          case 1: p[ 1 ] = NumberTraits<Integer>::castToInt64_t
+              ( ic.ceilDiv( d - a * x - c * z, b ) ); break;
+          case 2: p[ 2 ] = NumberTraits<Integer>::castToInt64_t
+              ( ic.ceilDiv( d - a * x - b * y, c ) ); break;
+          } 
+        }
+      bool ok_ext = plane.isExtendable( points.begin(), points.end() ); // should be ok
+      bool ok = plane.extend( points.begin(), points.end() ); // should be ok
+      ++nb, nbok += ok_ext ? 1 : 0;
+      ++nb, nbok += ok ? 1 : 0;
+      if ( ! ok )
+        {
+          std::cerr << "[ERROR] p=" << points[ 0 ] << " NOT IN plane=" << plane << std::endl;
+          for ( typename NaivePlane::ConstIterator it = plane.begin(), itE = plane.end();
+                it != itE; ++it )
+            std::cerr << " " << *it;
+          std::cerr << endl;
+          std::cerr << "d <= a*x+b*y+c*z <= d+max(a,b,c)"
+                    << d << " <= " << a << "*" << p[0] 
+                    << "+" << b << "*" << p[1] 
+                    << "+" << c << "*" << p[2]
+                    << " = " << (a*p[0]+b*p[1]+c*p[2])
+                    << std::endl;
+          break;
+        }
+      if ( ! ok_ext )
+        {
+          std::cerr << "[ERROR] p=" << p << " was NOT extendable IN plane=" << plane << std::endl;
+          break;
+        }
+      // else
+      //   std::cerr << "[OK] p=" << p << " IN plane=" << plane << std::endl;
+    }
+
+  // Checks that points outside the naive plane are correctly recognized as outliers.
+  while ( nb < (nbtries * 11 ) / 10 )
+    {
+      p[ 0 ] = getRandomInteger<PointInteger>( -diameter+1, diameter ); 
+      p[ 1 ] = getRandomInteger<PointInteger>( -diameter+1, diameter ); 
+      p[ 2 ] = getRandomInteger<PointInteger>( -diameter+1, diameter );
+      x = (Integer) p[ 0 ];
+      y = (Integer) p[ 1 ];
+      z = (Integer) p[ 2 ];
+      switch ( axis ) {
+      case 0: p[ 0 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - b * y - c * z, a ) ); break;
+      case 1: p[ 1 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - a * x - c * z, b ) ); break;
+      case 2: p[ 2 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - a * x - b * y, c ) ); break;
+      } 
+      PointInteger tmp = getRandomInteger<PointInteger>( 2, 5 ) 
+        * (2*getRandomInteger<PointInteger>( 0, 2 ) - 1 );
+      p[ axis ] += tmp;
+      bool ok_ext = ! plane.isExtendable( p ); // should *not* be ok
+      bool ok = ! plane.extend( p ); // should *not* be ok
+      ++nb, nbok += ok ? 1 : 0;
+      ++nb, nbok += ok_ext ? 1 : 0;
+      if ( ! ok )
+        {
+          std::cerr << "[ERROR] p=" << p << " IN plane=" << plane << std::endl;
+          break;
+        }
+      if ( ! ok_ext )
+        {
+          std::cerr << "[ERROR] p=" << p << " was extendable IN plane=" << plane << std::endl;
+          break;
+        }
+      // else
+      //   std::cerr << "[OK] p=" << p << " IN plane=" << plane << std::endl;
+    }
+  return nb == nbok;
+}
+
+
 
 /**
  * Checks the naive plane d <= ax+by+cz <= d + max(|a|,|b|,|c|)-1
@@ -289,7 +404,14 @@ checkPlanes( unsigned int nbplanes, int diameter, unsigned int nbtries )
           ++nb, nbok += checkPlane<Integer, NaivePlane>( a, b, c, d, diameter, nbtries ) ? 1 : 0;
           if ( nb != nbok )
             {
-              std::cerr << "[ERROR] for plane " << a << " * x + " 
+              std::cerr << "[ERROR] (Simple extension) for plane " << a << " * x + " 
+                        << b << " * y + " << c << " * z = " << d << std::endl;
+              break;
+            }
+          ++nb, nbok += checkPlaneGroupExtension<Integer, NaivePlane>( a, b, c, d, diameter, nbtries ) ? 1 : 0;
+          if ( nb != nbok )
+            {
+              std::cerr << "[ERROR] (Group extension) for plane " << a << " * x + " 
                         << b << " * y + " << c << " * z = " << d << std::endl;
               break;
             }

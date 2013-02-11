@@ -52,7 +52,7 @@ DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 template <typename TPoint, typename TInternalScalar>
 inline
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
-ChordNaivePlane()
+ChordNaivePlane() : z( -1 )
 { // Object is invalid
 }
 //-----------------------------------------------------------------------------
@@ -94,6 +94,7 @@ DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 clear()
 {
   myPointSet.clear();
+  myState.nbValid = 0;
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -341,9 +342,150 @@ template <typename TPoint, typename TInternalScalar>
 template <typename TInputIterator>
 bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
-extend( TInputIterator it, TInputIterator itE )
+satisfies( State & state, TInputIterator itB, TInputIterator itE ) const
 {
   BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
+  ASSERT( isValid() );
+  state.nbValid = 0;
+  if ( itB == itE ) return true;
+  unsigned int loop;
+  state.nbValid = findTriangle( state, itB, itE );
+  setUpNormal( state );
+  unsigned int result = 0; // 0: computing, 1: too large, 2: found.
+  for ( loop = 0; result == 0; ++loop )
+    {
+      computeHeight( state );
+      if ( ( state.height * myWidth1 ) >= ( state.N[ z ] * myWidth0 ) ) // because width is strict
+        result = 1;
+      else
+        {
+          computeMinMax( state, itB, itE );
+          if ( checkWidth( state ) )
+            result = 2;
+          else if ( state.nbValid >= 2 )
+            { // in case 2 and 3, we have a starting triangle.
+              Point M = state.ptMax - state.ptMin;
+              newCurrentTriangle( state, M );
+              computeNormal( state );
+            }
+          else
+            { // in case 1, normal is already aligned with main axis.
+              state.A = state.ptMax - state.ptMin;
+            }
+        }
+      if (loop>=1000) {
+        std::cerr << "[ChordNaivePlane::satisfies()]"
+                  << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: " << *this << std::endl;
+        selfDisplay( std::cerr, state );
+        std::cerr << std::endl;
+        std::cerr << "- Points: ";
+        for ( TInputIterator it = itB; it != itE; ++it )
+          std::cerr << " " << *it;
+        std::cerr << std::endl;
+        result = 1;
+      }
+    }
+  return result == 2;
+}
+
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+bool
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+extend( TInputIterator itB, TInputIterator itE )
+{
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
+  if ( itB == itE ) return true;
+  unsigned int loop;
+  ASSERT( isValid() );
+  if ( empty() ) { // case where object is empty.
+    bool ok = satisfies( _state, itB, itE );
+    if ( ok ) // ideal case: all points false within current plane.
+      {
+        myState = _state;
+        myPointSet.insert( itB, itE );
+        // std::cout << "- (Group extend) satisfies for " << *this << std::endl;
+      }
+    return ok;
+  }
+  // Object contains already some points.
+  _state = myState;
+  bool changed = updateMinMax( _state, itB, itE );
+  if ( ! changed ) { // cases where added points did not change the bounds.
+    myPointSet.insert( itB, itE );
+    // std::cout << "- (Group extend) unchanged for " << *this << std::endl;
+    return true;
+  }
+  if ( myState.nbValid < 3 )
+    { // initial case
+      _state.nbValid = findMixedTriangle( _state, 
+                                          myPointSet.begin(), myPointSet.end(),
+                                          itB, itE );
+      setUpNormal( _state );
+      // std::cout << "- (Group extend) findTriangle #=" << _state.nbValid << std::endl;
+    }
+  else 
+    {
+      _state = myState;
+      // std::cout << "- (Group extend) Getting state " << std::endl;
+    }
+  unsigned int result = 0; // 0: computing, 1: too large, 2: found.
+  for ( loop = 0; result == 0; ++loop )
+    {
+      computeHeight( _state );
+      // std::cout << "  - " << loop << "/h=" << _state.height 
+      //           << "/N=" << _state.N[ z ]
+      //           << " : ";
+      // selfDisplay( std::cout, _state );
+      // std::cout << std::endl;
+      if ( ( _state.height * myWidth1 ) >= ( _state.N[ z ] * myWidth0 ) ) // because width is strict
+        result = 1;
+      else
+        {
+          computeMinMax( _state, myPointSet.begin(), myPointSet.end() );
+          updateMinMax( _state, itB, itE );
+          if ( checkWidth( _state ) )
+            { // ok, plane is fine.
+              result = 2;
+            }
+          else if ( _state.nbValid >= 2 )
+            { // in case 2 and 3, we have a starting triangle.
+              Point M = _state.ptMax - _state.ptMin;
+              newCurrentTriangle( _state, M );
+              computeNormal( _state );
+            }
+          else
+            { // in case 1, normal is already aligned with main axis.
+              _state.A = _state.ptMax - _state.ptMin;
+            }
+        }
+      if (loop>=1000) {
+        std::cerr << "[ChordNaivePlane::extend(Iterator,Iterator)]"
+                  << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: " << *this << std::endl;
+        selfDisplay( std::cerr, _state );
+        std::cerr << std::endl;
+        std::cerr << "- Points: ";
+        for ( ConstIterator it = this->begin(), itEnd = this->end();
+              it != itEnd; ++it )
+          std::cerr << " " << *it;
+        for ( TInputIterator it2 = itB; it2 != itE; ++it2 )
+          std::cerr << " " << *it2;
+        std::cerr << std::endl;
+        result = 1;
+      }
+    }
+  // find a correct plane.
+  if ( result == 2 )
+    {
+      myState = _state;
+      myPointSet.insert( itB, itE );
+      return true;
+    }
   // was unable to find a correct plane.
   return false;
 }
@@ -352,10 +494,78 @@ template <typename TPoint, typename TInternalScalar>
 template <typename TInputIterator>
 bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
-isExtendable( TInputIterator it, TInputIterator itE ) const
+isExtendable( TInputIterator itB, TInputIterator itE ) const
 {
   BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
-  return false;
+  if ( itB == itE ) return true;
+  unsigned int loop;
+  ASSERT( isValid() );
+  if ( empty() ) 
+    { // case where object is empty.
+      return satisfies( _state, itB, itE );
+    }
+  // Object contains already some points.
+  _state = myState;
+  bool changed = updateMinMax( _state, itB, itE );
+  if ( ! changed ) 
+    { // cases where added points did not change the bounds.
+      return true;
+    }
+  if ( myState.nbValid < 3 )
+    { // initial case
+      _state.nbValid = findMixedTriangle( _state, 
+                                          myPointSet.begin(), myPointSet.end(),
+                                          itB, itE );
+      setUpNormal( _state );
+    }
+  else 
+    {
+      _state = myState;
+    }
+  unsigned int result = 0; // 0: computing, 1: too large, 2: found.
+  for ( loop = 0; result == 0; ++loop )
+    {
+      computeHeight( _state );
+      if ( ( _state.height * myWidth1 ) >= ( _state.N[ z ] * myWidth0 ) ) // because width is strict
+        result = 1;
+      else
+        {
+          computeMinMax( _state, myPointSet.begin(), myPointSet.end() );
+          updateMinMax( _state, itB, itE );
+          if ( checkWidth( _state ) )
+            { // ok, plane is fine.
+              result = 2;
+            }
+          else if ( _state.nbValid >= 2 )
+            { // in case 2 and 3, we have a starting triangle.
+              Point M = _state.ptMax - _state.ptMin;
+              newCurrentTriangle( _state, M );
+              computeNormal( _state );
+            }
+          else
+            { // in case 1, normal is already aligned with main axis.
+              _state.A = _state.ptMax - _state.ptMin;
+            }
+        }
+      if (loop>=1000) {
+        std::cerr << "[ChordNaivePlane::isExtendable(Iterator,Iterator)]"
+                  << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: " << *this << std::endl;
+        selfDisplay( std::cerr, _state );
+        std::cerr << std::endl;
+        std::cerr << "- Points: ";
+        for ( ConstIterator it = this->begin(), itEnd = this->end();
+              it != itEnd; ++it )
+          std::cerr << " " << *it;
+        for ( TInputIterator it2 = itB; it2 != itE; ++it2 )
+          std::cerr << " " << *it2;
+        std::cerr << std::endl;
+        result = 1;
+      }
+    }
+  // find a correct plane.
+  return result == 2;
 }
 
 
@@ -605,7 +815,7 @@ signDelta( const Point & A, const Point & C ) const
 { // B is zero
   InternalScalar res = 
     ( (InternalScalar) (-A[ x ]) ) * ( (InternalScalar) (C[ y ]-A[ y ]) )
-    - ( (InternalScalar) (-A[ y ]) ) * ( (InternalScalar) (C[ x ]-A[ x ]) );
+    + ( (InternalScalar) (A[ y ]) ) * ( (InternalScalar) (C[ x ]-A[ x ]) );
   return ( res > (InternalScalar) 0 ) 
     ? 1 : ( ( res < (InternalScalar) 0 ) ? -1 : 0 );
 }
@@ -621,13 +831,13 @@ updateMinMax( State & state, TInputIterator itB, TInputIterator itE ) const
   bool changed = false;
   for ( ; itB != itE; ++itB )
     {
-      InternalScalar s = internalDot( state.N, *itB );
-      if ( s > state.max ) {
-        state.max = s; 
+      _d = internalDot( state.N, *itB );
+      if ( _d > state.max ) {
+        state.max = _d; 
         state.ptMax = *itB;
         changed = true;
-      } else if ( s < state.min ) {
-        state.min = s; 
+      } else if ( _d < state.min ) {
+        state.min = _d; 
         state.ptMin = *itB;
         changed = true;
       }
@@ -643,18 +853,18 @@ computeMinMax( State & state, TInputIterator itB, TInputIterator itE ) const
 {
   BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
   ASSERT( itB != itE );
-  InternalScalar s = internalDot( state.N, *itB );
-  state.min = state.max = s;
+  _d = internalDot( state.N, *itB );
+  state.min = state.max = _d;
   state.ptMin = state.ptMax = *itB;
   ++itB;
   for ( ; itB != itE; ++itB )
     {
-      s = internalDot( state.N, *itB );
-      if ( s > state.max ) {
-        state.max = s; 
+      _d = internalDot( state.N, *itB );
+      if ( _d > state.max ) {
+        state.max = _d; 
         state.ptMax = *itB;
-      } else if ( s < state.min ) {
-        state.min = s; 
+      } else if ( _d < state.min ) {
+        state.min = _d; 
         state.ptMin = *itB;
       }
     }
@@ -677,6 +887,62 @@ findTriangle( State & state, TInputIterator itB, TInputIterator itE ) const
     ;
   if ( itB == itE ) return 2; 
   state.C = *itB;   // third point
+  return 3;
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+unsigned int
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+findTriangle1( State & state, TInputIterator itB, TInputIterator itE ) const
+{
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
+  for ( ; ( itB != itE ) && alignedAlongAxis( state.A, *itB ); ++itB )
+    ;
+  if ( itB == itE ) return 1;
+  state.B = *itB++; // second point
+  for ( ; ( itB != itE ) && ( signDelta( state.A, state.B, *itB ) == 0 ); ++itB )
+    ;
+  if ( itB == itE ) return 2; 
+  state.C = *itB;   // third point
+  return 3;
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+unsigned int
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+findTriangle2( State & state, TInputIterator itB, TInputIterator itE ) const
+{
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
+  for ( ; ( itB != itE ) && ( signDelta( state.A, state.B, *itB ) == 0 ); ++itB )
+    ;
+  if ( itB == itE ) return 2; 
+  state.C = *itB;   // third point
+  return 3;
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator1, typename TInputIterator2>
+unsigned int
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+findMixedTriangle( State & state, 
+                   TInputIterator1 itB1, TInputIterator1 itE1,
+                   TInputIterator2 itB2, TInputIterator2 itE2 ) const
+{
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator1> ));
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator2> ));
+  if ( itB1 == itE1 ) return findTriangle( state, itB2, itE2 ) ;
+  state.A = *itB1++; // first point
+  for ( ; ( itB1 != itE1 ) && alignedAlongAxis( state.A, *itB1 ); ++itB1 )
+    ;
+  if ( itB1 == itE1 ) return findTriangle1( state, itB2, itE2 );
+  
+  state.B = *itB1++; // second point
+  for ( ; ( itB1 != itE1 ) && ( signDelta( state.A, state.B, *itB1 ) == 0 ); ++itB1 )
+    ;
+  if ( itB1 == itE1 ) return findTriangle2( state, itB2, itE2 ); 
+  state.C = *itB1;   // third point
   return 3;
 }
 //-----------------------------------------------------------------------------

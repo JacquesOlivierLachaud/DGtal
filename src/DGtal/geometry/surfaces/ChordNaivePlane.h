@@ -315,14 +315,14 @@ namespace DGtal
      * pointed by iterators should be in the diameter of this object.
      *
      * @tparam TInputIterator any model of InputIterator on Point.
-     * @param it an iterator on the first element of the range of 3D points.
-     * @param itE an iterator after the last element of the range of 3D points.
+     * @param[in] itB an iterator on the first element of the range of 3D points.
+     * @param[in] itE an iterator after the last element of the range of 3D points.
      *
      * @return 'true' if it is still a plane, 'false' otherwise (the
      * object is then in its original state).
      */
     template <typename TInputIterator>
-    bool extend( TInputIterator it, TInputIterator itE );
+    bool extend( TInputIterator itB, TInputIterator itE );
 
     /**
      * Checks if we have still a digital plane of specified width when
@@ -333,13 +333,27 @@ namespace DGtal
      * this->extend( it, itE ) == true'.
      *
      * @tparam TInputIterator any model of InputIterator on Point.
-     * @param it an iterator on the first element of the range of 3D points.
-     * @param itE an iterator after the last element of the range of 3D points.
+     * @param[in] itB an iterator on the first element of the range of 3D points.
+     * @param[in] itE an iterator after the last element of the range of 3D points.
      *
      * @return 'true' if this is still a plane, 'false' otherwise.
      */
     template <typename TInputIterator>
-    bool isExtendable( TInputIterator it, TInputIterator itE ) const;
+    bool isExtendable( TInputIterator itB, TInputIterator itE ) const;
+
+    /**
+       Useful to check if a given set of points has a valid axis width.
+
+       @tparam TInputIterator any model of InputIterator on Point.
+       
+       @param[in,out] the modified state.
+       @param[in] itB an iterator on the first element of the range of 3D points.
+       @param[in] itE an iterator after the last element of the range of 3D points.
+       @return 'true' iff the set of points given by range [itB,itE) has a valid width.
+    */
+    template <typename TInputIterator>
+    bool
+    satisfies( State & state, TInputIterator itB, TInputIterator itE ) const;
 
     //-------------------- Parameters services -----------------------------
   public:
@@ -348,7 +362,7 @@ namespace DGtal
      * @tparam Vector3D any type T such that T.operator[](int i)
      * returns a reference to a double. i ranges in 0,1,2.
      *
-     * @param (updates) the current normal vector 
+     * @param[in,out] normal the current normal vector 
      */
     template <typename Vector3D>
     void getNormal( Vector3D & normal ) const;
@@ -357,7 +371,7 @@ namespace DGtal
      * @tparam Vector3D any type T such that T.operator[](int i)
      * returns a reference to a double. i ranges in 0,1,2.
      *
-     * @param (updates) the current unit normal vector 
+     * @param[in,out] normal the current unit normal vector 
      */
     template <typename Vector3D>
     void getUnitNormal( Vector3D & normal ) const;
@@ -400,7 +414,7 @@ namespace DGtal
 
     /**
        Cross product with potentially better precision.
-       @param n [out] the vector that stores the cross product of u and v.
+       @param[out] n the vector that stores the cross product of u and v.
        @param u any vector
        @param v any vector
      */
@@ -495,24 +509,32 @@ namespace DGtal
     /**
        Sets up a consistent initial normal direction given the output
        of findTriangle (state.nbValid, state.A, state.B, state.C). 
+
+       @param[in,out] the modified state.
     */
     void setUpNormal( State & state ) const;
 
     /**
        Sets up a consistent initial normal direction given the output
        of findTriangle (state.nbValid == 1).
+
+       @param[in,out] the modified state.
     */
     void setUpNormal1( State & state ) const;
 
     /**
        Sets up a consistent initial normal direction given the output
        of findTriangle (state.nbValid == 2, state.A).
+
+       @param[in,out] the modified state.
     */
     void setUpNormal2( State & state ) const;
 
     /**
        Sets up a consistent initial normal direction given the output
        of findTriangle (state.nbValid == 3, state.A, state.B, state.C). 
+
+       @param[in,out] the modified state.
     */
     void setUpNormal3( State & state ) const;
 
@@ -585,6 +607,15 @@ namespace DGtal
     */
     template <typename TInputIterator>
     unsigned int findTriangle( State & state, TInputIterator itB, TInputIterator itE ) const;
+
+    template <typename TInputIterator>
+    unsigned int findTriangle1( State & state, TInputIterator itB, TInputIterator itE ) const;
+    template <typename TInputIterator>
+    unsigned int findTriangle2( State & state, TInputIterator itB, TInputIterator itE ) const;
+    template <typename TInputIterator1, typename TInputIterator2>
+    unsigned int findMixedTriangle( State & state, 
+                                    TInputIterator1 itB1, TInputIterator1 itE1,
+                                    TInputIterator2 itB2, TInputIterator2 itE2 ) const;
 
     /**
        @param p1 any point.
