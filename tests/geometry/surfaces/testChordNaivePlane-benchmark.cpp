@@ -34,6 +34,7 @@
 #include "DGtal/base/Statistic.h"
 #include "DGtal/helpers/StdDefs.h"
 #include "DGtal/kernel/CPointPredicate.h"
+#include "DGtal/arithmetic/IntegerComputer.h"
 #include "DGtal/geometry/surfaces/ChordNaivePlane.h"
 ///////////////////////////////////////////////////////////////////////////////
 

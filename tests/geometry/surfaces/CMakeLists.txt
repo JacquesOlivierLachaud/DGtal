@@ -7,6 +7,7 @@ SET(TESTS_SURFACES_SRC
 FOREACH(FILE ${TESTS_SURFACES_SRC})
   add_executable(${FILE} ${FILE})
   target_link_libraries (${FILE} DGtal DGtalIO ${DGtalLibDependencies})
+  add_test(${FILE} ${FILE})
 ENDFOREACH(FILE)
 
 
