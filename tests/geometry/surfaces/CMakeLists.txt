@@ -1,11 +1,13 @@
 
 SET(TESTS_SURFACES_SRC
  testNormalVectorEstimatorEmbedder
+  testChordNaivePlane
 )
 
 FOREACH(FILE ${TESTS_SURFACES_SRC})
   add_executable(${FILE} ${FILE})
   target_link_libraries (${FILE} DGtal DGtalIO ${DGtalLibDependencies})
+  add_test(${FILE} ${FILE})
 ENDFOREACH(FILE)
 
 
@@ -42,6 +44,8 @@ ENDIF(GMP_FOUND)
 SET(DGTAL_BENCH_GMP_SRC
    testCOBANaivePlane-benchmark
    testCOBAGenericNaivePlane-benchmark
+   testChordNaivePlane-benchmark
+   testChordGenericNaivePlane-benchmark
 )
 
 

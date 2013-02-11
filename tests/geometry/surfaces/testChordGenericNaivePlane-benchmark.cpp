@@ -15,14 +15,14 @@
  **/
 
 /**
- * @file testCOBAGenericNaivePlane-benchmark.cpp
+ * @file testChordGenericNaivePlane-benchmark.cpp
  * @ingroup Tests
  * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
  * Laboratory of Mathematics (CNRS, UMR 5127), University of Savoie, France
  *
  * @date 2012/03/05
  *
- * Functions for testing class COBAGenericNaivePlane.
+ * Functions for testing class ChordGenericNaivePlane.
  *
  * This file is part of the DGtal library.
  */
@@ -31,17 +31,17 @@
 #include <cstdlib>
 #include <iostream>
 #include "DGtal/base/Common.h"
-#include "DGtal/math/Statistic.h"
+#include "DGtal/base/Statistic.h"
 #include "DGtal/helpers/StdDefs.h"
 #include "DGtal/kernel/CPointPredicate.h"
-#include "DGtal/geometry/surfaces/COBAGenericNaivePlane.h"
+#include "DGtal/geometry/surfaces/ChordGenericNaivePlane.h"
 ///////////////////////////////////////////////////////////////////////////////
 
 using namespace std;
 using namespace DGtal;
 
 ///////////////////////////////////////////////////////////////////////////////
-// Functions for testing class COBAGenericNaivePlane.
+// Functions for testing class ChordGenericNaivePlane.
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename Integer>
@@ -76,12 +76,11 @@ checkGenericPlane( Integer a, Integer b, Integer c, Integer d,
     axis = 2;
   Point p;
   NaivePlane plane;
-  plane.init( diameter, 1, 1 );
+  plane.init( 1, 1 );
   // Checks that points within the naive plane are correctly recognized.
   unsigned int nb = 0;
   unsigned int nbok = 0;
   unsigned int nbchanges = 0;
-  unsigned int complexity = plane.complexity();
   while ( nb != nbpoints )
     {
       p[ 0 ] = getRandomInteger<PointInteger>( -diameter+1, diameter ); 
@@ -102,11 +101,6 @@ checkGenericPlane( Integer a, Integer b, Integer c, Integer d,
           std::cerr << "[ERROR] p=" << p << " NOT IN plane=" << plane << std::endl;
           break;
         }
-      if ( plane.complexity() != complexity )
-        {
-          complexity = plane.complexity();
-          ++nbchanges;
-        }
     }
   stats.addValue( (double) nbchanges );
   return nb == nbok;
@@ -118,7 +112,7 @@ checkGenericPlanes( unsigned int nbplanes, int diameter, unsigned int nbpoints,
              Statistic<double> & stats )
 {
   //using namespace Z3i;
-  typedef typename NaivePlane::InternalInteger Integer;
+  typedef typename NaivePlane::InternalScalar Integer;
   unsigned int nb = 0;
   unsigned int nbok = 0;
   for ( unsigned int nbp = 0; nbp < nbplanes; ++nbp )
@@ -153,13 +147,13 @@ int main( int argc, char** argv )
   unsigned int nbpoints = ( argc > 2 ) ? atoi( argv[ 2 ] ) : 100;
   unsigned int diameter = ( argc > 3 ) ? atoi( argv[ 3 ] ) : 100;
   std::cout << "# Usage: " << argv[0] << " <nbtries> <nbpoints> <diameter>." << std::endl;
-  std::cout << "# Test class COBAGenericNaivePlane. Points are randomly chosen in [-diameter,diameter]^3." << std::endl;
+  std::cout << "# Test class ChordGenericNaivePlane. Points are randomly chosen in [-diameter,diameter]^3." << std::endl;
   std::cout << "# Integer nbtries nbpoints diameter time/plane(ms) E(comp) V(comp)" << std::endl;
   
  // Max diameter is ~20 for int32_t, ~500 for int64_t, any with BigInteger.
-  trace.beginBlock ( "Testing class COBAGenericNaivePlane" );
+  trace.beginBlock ( "Testing class ChordGenericNaivePlane" );
   bool res = true 
-    && checkGenericPlanes<COBAGenericNaivePlane<Z3, DGtal::int64_t> >( nbtries, diameter, nbpoints, stats );
+    && checkGenericPlanes<ChordGenericNaivePlane<Z3::Point, DGtal::int64_t> >( nbtries, diameter, nbpoints, stats );
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   long t = trace.endBlock();
   stats.terminate();
