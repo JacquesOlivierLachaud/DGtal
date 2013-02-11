@@ -1,7 +1,7 @@
 
 SET(TESTS_SURFACES_SRC
  testNormalVectorEstimatorEmbedder
- testChordNaivePlane
+  testChordNaivePlane
 )
 
 FOREACH(FILE ${TESTS_SURFACES_SRC})
@@ -43,6 +43,8 @@ ENDIF(GMP_FOUND)
 SET(DGTAL_BENCH_GMP_SRC
    testCOBANaivePlane-benchmark
    testCOBAGenericNaivePlane-benchmark
+   testChordNaivePlane-benchmark
+   testChordGenericNaivePlane-benchmark
 )
 
 

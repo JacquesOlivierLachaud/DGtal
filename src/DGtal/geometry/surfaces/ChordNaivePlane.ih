@@ -135,6 +135,24 @@ empty() const
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
 inline
+typename DGtal::ChordNaivePlane<TPoint, TInternalScalar>::ConstIterator
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+begin() const
+{
+  return myPointSet.begin();
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+inline
+typename DGtal::ChordNaivePlane<TPoint, TInternalScalar>::ConstIterator
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+end() const
+{
+  return myPointSet.end();
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+inline
 typename DGtal::ChordNaivePlane<TPoint, TInternalScalar>::Size
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 max_size() const
@@ -218,22 +236,29 @@ extend( const Point & p )
               //           << std::endl;
               result = 2;
             }
-          else
-            {
+          else if ( _state.nbValid >= 2 )
+            { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              if ( _state.nbValid < 3 )
-                newCurrentSegment( _state, M );
-              else
-                newCurrentTriangle( _state, M );
-              // std::cerr << "(loop=" << loop << ") ";
-              // selfDisplay( std::cerr, _state );
-              // std::cerr << std::endl;
+              newCurrentTriangle( _state, M );
               computeNormal( _state );
+            }
+          else
+            { // in case 1, normal is already aligned with main axis.
+              _state.A = _state.ptMax - _state.ptMin;
             }
         }
       if (loop>=1000) {
         std::cerr << "[ChordNaivePlane::extend()]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: " << *this << std::endl;
+        selfDisplay( std::cerr, _state );
+        std::cerr << std::endl;
+        std::cerr << "- Points: ";
+        for ( ConstIterator it = this->begin(), itE = this->end();
+              it != itE; ++it )
+          std::cerr << " " << *it;
+        std::cerr << std::endl;
         result = 1;
       }
     }
@@ -281,19 +306,29 @@ isExtendable( const Point & p ) const
               //           << std::endl;
               result = 2;
             }
-          else
-            {
+          else if ( _state.nbValid >= 2 )
+            { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              if ( _state.nbValid < 3 )
-                newCurrentSegment( _state, M );
-              else
-                newCurrentTriangle( _state, M );
+              newCurrentTriangle( _state, M );
               computeNormal( _state );
+            }
+          else
+            { // in case 1, normal is already aligned with main axis.
+              _state.A = _state.ptMax - _state.ptMin;
             }
         }
       if (loop>=1000) {
-        std::cerr << "[ChordNaivePlane::extend()]"
+        std::cerr << "[ChordNaivePlane::isExtendable()]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: " << *this << std::endl;
+        selfDisplay( std::cerr, _state );
+        std::cerr << std::endl;
+        std::cerr << "- Points: ";
+        for ( ConstIterator it = this->begin(), itE = this->end();
+              it != itE; ++it )
+          std::cerr << " " << *it;
+        std::cerr << std::endl;
         result = 1;
       }
     }

@@ -159,11 +159,11 @@ int main( int argc, char** argv )
  // Max diameter is ~20 for int32_t, ~500 for int64_t, any with BigInteger.
   trace.beginBlock ( "Testing class COBANaivePlane" );
   bool res = true 
-    && checkPlanes<COBANaivePlane<Z3, DGtal::BigInteger> >( nbtries, diameter, nbpoints, stats );
+    && checkPlanes<COBANaivePlane<Z3, int64_t> >( nbtries, diameter, nbpoints, stats );
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   long t = trace.endBlock();
   stats.terminate();
-  std::cout << "BigInteger" << " " << stats.samples()
+  std::cout << "int64_t" << " " << stats.samples()
             << " " << nbpoints
             << " " << diameter 
             << " " << ( (double) t / (double) stats.samples() )
