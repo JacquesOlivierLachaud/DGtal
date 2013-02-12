@@ -252,13 +252,15 @@ extend( const Point & p )
         std::cerr << "[ChordNaivePlane::extend()]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
         std::cerr << "- Former state: " << *this << std::endl;
-        std::cerr << "- Current state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
         selfDisplay( std::cerr, _state );
         std::cerr << std::endl;
         std::cerr << "- Points: ";
         for ( ConstIterator it = this->begin(), itE = this->end();
               it != itE; ++it )
           std::cerr << " " << *it;
+        std::cerr << std::endl;
+        std::cerr << "- Added Points: " << p;
         std::cerr << std::endl;
         result = 1;
       }
@@ -322,13 +324,15 @@ isExtendable( const Point & p ) const
         std::cerr << "[ChordNaivePlane::isExtendable()]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
         std::cerr << "- Former state: " << *this << std::endl;
-        std::cerr << "- Current state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
         selfDisplay( std::cerr, _state );
         std::cerr << std::endl;
         std::cerr << "- Points: ";
         for ( ConstIterator it = this->begin(), itE = this->end();
               it != itE; ++it )
           std::cerr << " " << *it;
+        std::cerr << std::endl;
+        std::cerr << "- Added Points: " << p;
         std::cerr << std::endl;
         result = 1;
       }
@@ -377,10 +381,10 @@ satisfies( State & state, TInputIterator itB, TInputIterator itE ) const
         std::cerr << "[ChordNaivePlane::satisfies()]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
         std::cerr << "- Former state: " << *this << std::endl;
-        std::cerr << "- Current state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
         selfDisplay( std::cerr, state );
         std::cerr << std::endl;
-        std::cerr << "- Points: ";
+        std::cerr << "- Added Points: ";
         for ( TInputIterator it = itB; it != itE; ++it )
           std::cerr << " " << *it;
         std::cerr << std::endl;
@@ -389,6 +393,113 @@ satisfies( State & state, TInputIterator itB, TInputIterator itE ) const
     }
   return result == 2;
 }
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+inline
+bool
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+satisfies( TInputIterator itB, TInputIterator itE ) const
+{
+  return satisfies( _state, itB, itE );
+}
+
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+inline
+std::pair<TInternalScalar, TInternalScalar>
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+computeAxisWidth( Dimension axis, TInputIterator itB, TInputIterator itE )
+{
+  ChordNaivePlane plane;
+  plane.init( axis );
+  return plane.axisWidth( itB, itE );
+}
+
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+std::pair<TInternalScalar, TInternalScalar>
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+axisWidth( State & state, TInputIterator itB, TInputIterator itE ) const
+{
+  BOOST_CONCEPT_ASSERT(( boost::InputIterator<TInputIterator> ));
+  ASSERT( isValid() );
+  state.nbValid = 0;
+  if ( itB == itE ) return std::make_pair( (TInternalScalar) 0, (TInternalScalar) 0 );
+  state.nbValid = findTriangle( state, itB, itE );
+  setUpNormal( state );
+  computeMinMax( state, itB, itE );
+  InternalVector formerN; // memorizes former normal vector.
+  formerN[ 0 ] = state.N[ 0 ]; formerN[ 1 ] = state.N[ 1 ]; formerN[ 2 ] = state.N[ 2 ];
+  std::pair<TInternalScalar, TInternalScalar> width( state.max - state.min, state.N[ z ] );
+  bool optimum = false;
+  for ( unsigned int loop = 0; ! optimum; ++loop )
+    {
+      computeHeight( state );
+      // std::cerr << "[axisWidth] (" << loop << ")"
+      //           << " axis=" << z
+      //           << " h=" << state.height 
+      //           << " N=(" << state.N[ 0 ] << "," << state.N[ 1 ] << ","<< state.N[ 2 ] << ")"
+      //           << " w=(" << width.first << "," << width.second << ")"
+      //           << std::endl;
+      // selfDisplay( std::cerr, state );
+      // std::cerr << std::endl;
+      if ( state.nbValid >= 2 )
+        { // in case 2 and 3, we have a starting triangle.
+          Point M = state.ptMax - state.ptMin;
+          newCurrentTriangle( state, M );
+          computeNormal( state );
+        }
+      else
+        { // in case 1, normal is already aligned with main axis.
+          state.A = state.ptMax - state.ptMin;
+        }
+      computeMinMax( state, itB, itE );
+      // To determine the optimum position:
+      // - it is not enough to look at the current width and check for the smallest one.
+      // - it is not enough to look at the current vector ptMax - ptMin to see if it is changing
+      // - it suffices to look at the normal vector and check that it has changed.
+      if ( ( formerN[ 0 ] == state.N[ 0 ] ) 
+           && ( formerN[ 1 ] == state.N[ 1 ] ) 
+           && ( formerN[ 2 ] == state.N[ 2 ] ) )
+        { // optimum
+          optimum = true;
+        }
+      else
+        { // better width found.
+          width.first = state.max - state.min;
+          width.second = state.N[ z ];
+          formerN[ 0 ] = state.N[ 0 ]; formerN[ 1 ] = state.N[ 1 ]; formerN[ 2 ] = state.N[ 2 ];
+        }
+      if (loop>=1000) {
+        std::cerr << "[ChordNaivePlane::axisWidth()]"
+                  << " more than 1000 loops, computing error suspected" << std::endl;
+        std::cerr << "- Former state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
+        selfDisplay( std::cerr, state );
+        std::cerr << std::endl;
+        std::cerr << "- Added Points: ";
+        for ( TInputIterator it = itB; it != itE; ++it )
+          std::cerr << " " << *it;
+        std::cerr << std::endl;
+        optimum = true;
+      }
+    }
+  return width;
+}
+//-----------------------------------------------------------------------------
+template <typename TPoint, typename TInternalScalar>
+template <typename TInputIterator>
+inline
+std::pair<TInternalScalar, TInternalScalar>
+DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
+axisWidth( TInputIterator itB, TInputIterator itE ) const
+{
+  return axisWidth( _state, itB, itE );
+}
+
 
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -466,13 +577,15 @@ extend( TInputIterator itB, TInputIterator itE )
         std::cerr << "[ChordNaivePlane::extend(Iterator,Iterator)]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
         std::cerr << "- Former state: " << *this << std::endl;
-        std::cerr << "- Current state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
         selfDisplay( std::cerr, _state );
         std::cerr << std::endl;
         std::cerr << "- Points: ";
         for ( ConstIterator it = this->begin(), itEnd = this->end();
               it != itEnd; ++it )
           std::cerr << " " << *it;
+        std::cerr << std::endl;
+        std::cerr << "- Added Points: ";
         for ( TInputIterator it2 = itB; it2 != itE; ++it2 )
           std::cerr << " " << *it2;
         std::cerr << std::endl;
@@ -551,13 +664,15 @@ isExtendable( TInputIterator itB, TInputIterator itE ) const
         std::cerr << "[ChordNaivePlane::isExtendable(Iterator,Iterator)]"
                   << " more than 1000 loops, computing error suspected" << std::endl;
         std::cerr << "- Former state: " << *this << std::endl;
-        std::cerr << "- Current state: " << *this << std::endl;
+        std::cerr << "- Current state: ";
         selfDisplay( std::cerr, _state );
         std::cerr << std::endl;
         std::cerr << "- Points: ";
         for ( ConstIterator it = this->begin(), itEnd = this->end();
               it != itEnd; ++it )
           std::cerr << " " << *it;
+        std::cerr << std::endl;
+        std::cerr << "- Added Points: ";
         for ( TInputIterator it2 = itB; it2 != itE; ++it2 )
           std::cerr << " " << *it2;
         std::cerr << std::endl;
@@ -619,7 +734,7 @@ DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 minimalPoint() const
 {
   ASSERT( ! this->empty() );
-  return *(myState.indMin);
+  return myState.ptMin;
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
@@ -629,13 +744,9 @@ DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 maximalPoint() const
 {
   ASSERT( ! this->empty() );
-  return *(myState.indMax);
+  return myState.ptMax;
 }
 
-
-
-///////////////////////////////////////////////////////////////////////////////
-// Interface - public :
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
 template <typename TVector1, typename TVector2>
@@ -771,6 +882,7 @@ setUpNormal2( State & state ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 void
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 setUpNormal3( State & state ) const
@@ -782,6 +894,7 @@ setUpNormal3( State & state ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 setUp1( const Point & p1 )
@@ -797,6 +910,7 @@ setUp1( const Point & p1 )
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 int
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 signDelta( const Point & A, const Point & B, const Point & C ) const
@@ -809,6 +923,7 @@ signDelta( const Point & A, const Point & B, const Point & C ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 int
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 signDelta( const Point & A, const Point & C ) const
@@ -947,6 +1062,7 @@ findMixedTriangle( State & state,
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 alignedAlongAxis( const Point & p1, const Point & p2 ) const
@@ -955,6 +1071,7 @@ alignedAlongAxis( const Point & p1, const Point & p2 ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 void
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 computeHeight( State & state ) const
@@ -963,6 +1080,7 @@ computeHeight( State & state ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 void
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 computeNormal( State & state ) const
@@ -988,6 +1106,7 @@ computeNormal( State & state ) const
 }
 //-----------------------------------------------------------------------------
 template <typename TPoint, typename TInternalScalar>
+inline
 bool
 DGtal::ChordNaivePlane<TPoint, TInternalScalar>::
 checkWidth( const State & state ) const

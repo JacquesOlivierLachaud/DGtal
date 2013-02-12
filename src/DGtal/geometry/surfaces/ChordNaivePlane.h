@@ -216,6 +216,22 @@ namespace DGtal
                InternalScalar widthNumerator = NumberTraits< InternalScalar >::ONE, 
                InternalScalar widthDenominator = NumberTraits< InternalScalar >::ONE );
 
+    /**
+       Useful to compute the axis width of a given range of points (public static version).
+
+       @tparam TInputIterator any model of InputIterator on Point.
+       
+       @param[in] axis the main axis (0,1,2) for x, y or z.
+       @param[in] itB an iterator on the first element of the range of 3D points.
+       @param[in] itE an iterator after the last element of the range of 3D points.
+       @return the axis width as a pair numerator/denominator.
+    */
+    template <typename TInputIterator>
+    static 
+    std::pair<InternalScalar, InternalScalar>
+    computeAxisWidth( Dimension axis, TInputIterator itB, TInputIterator itE );
+
+
     //-------------------- model of ForwardContainer -----------------------------
   public:
 
@@ -342,18 +358,31 @@ namespace DGtal
     bool isExtendable( TInputIterator itB, TInputIterator itE ) const;
 
     /**
-       Useful to check if a given set of points has a valid axis width.
+       Useful to check if a given set of points has a valid axis width (public version).
 
        @tparam TInputIterator any model of InputIterator on Point.
        
-       @param[in,out] the modified state.
        @param[in] itB an iterator on the first element of the range of 3D points.
        @param[in] itE an iterator after the last element of the range of 3D points.
        @return 'true' iff the set of points given by range [itB,itE) has a valid width.
     */
     template <typename TInputIterator>
     bool
-    satisfies( State & state, TInputIterator itB, TInputIterator itE ) const;
+    satisfies( TInputIterator itB, TInputIterator itE ) const;
+
+    /**
+       Useful to compute the axis width of a given range of points (public version).
+
+       @tparam TInputIterator any model of InputIterator on Point.
+       
+       @param[in] itB an iterator on the first element of the range of 3D points.
+       @param[in] itE an iterator after the last element of the range of 3D points.
+       @return the axis width as a pair numerator/denominator.
+    */
+    template <typename TInputIterator>
+    std::pair<InternalScalar, InternalScalar>
+    axisWidth( TInputIterator itB, TInputIterator itE ) const;
+
 
     //-------------------- Parameters services -----------------------------
   public:
@@ -639,6 +668,36 @@ namespace DGtal
        @pre state.nbValid >= 2
      */
     void computeNormal( State & state ) const;
+
+    /**
+       Useful to check if a given set of points has a valid axis width.
+
+       @tparam TInputIterator any model of InputIterator on Point.
+       
+       @param[out] the resulting state, if you need to have a look.
+       @param[in] itB an iterator on the first element of the range of 3D points.
+       @param[in] itE an iterator after the last element of the range of 3D points.
+       @return 'true' iff the set of points given by range [itB,itE) has a valid width.
+    */
+    template <typename TInputIterator>
+    bool
+    satisfies( State & state, TInputIterator itB, TInputIterator itE ) const;
+
+
+    /**
+       Useful to compute the axis width of a given range of points.
+
+       @tparam TInputIterator any model of InputIterator on Point.
+       
+       @param[out] the resulting state, if you need to have a look.
+       @param[in] itB an iterator on the first element of the range of 3D points.
+       @param[in] itE an iterator after the last element of the range of 3D points.
+       @return the axis width as a pair numerator/denominator.
+    */
+    template <typename TInputIterator>
+    std::pair<InternalScalar, InternalScalar>
+    axisWidth( State & state, TInputIterator itB, TInputIterator itE ) const;
+
 
     /**
        @param[in,out] state the current state of the algorithm (fields

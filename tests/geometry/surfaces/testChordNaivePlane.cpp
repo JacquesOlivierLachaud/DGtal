@@ -49,7 +49,7 @@ using namespace DGtal;
 ///////////////////////////////////////////////////////////////////////////////
 
 template <typename Integer>
-Integer getRandomInteger( const Integer & first, const Integer & after_last )
+Integer getRandomInteger( Integer first, Integer after_last )
 {
   Integer r = (Integer) random();
   return ( r % (after_last - first) ) + first;
@@ -61,7 +61,7 @@ Integer getRandomInteger( const Integer & first, const Integer & after_last )
 template <typename Integer, typename NaivePlane>
 bool
 checkPlane( Integer a, Integer b, Integer c, Integer d, 
-            unsigned int diameter, unsigned int nbtries )
+            int diameter, unsigned int nbtries )
 {
   typedef typename NaivePlane::Point Point;
   typedef typename Point::Component PointInteger;
@@ -167,7 +167,7 @@ checkPlane( Integer a, Integer b, Integer c, Integer d,
 template <typename Integer, typename NaivePlane>
 bool
 checkPlaneGroupExtension( Integer a, Integer b, Integer c, Integer d, 
-                          unsigned int diameter, unsigned int nbtries )
+                          int diameter, unsigned int nbtries )
 {
   typedef typename NaivePlane::Point Point;
   typedef typename Point::Component PointInteger;
@@ -421,6 +421,103 @@ checkPlanes( unsigned int nbplanes, int diameter, unsigned int nbtries )
 }
 
 /**
+ * Checks the naive plane d <= ax+by+cz <= d + max(|a|,|b|,|c|)-1
+ */
+template <typename Integer, typename NaivePlane>
+bool
+checkWidth( Integer a, Integer b, Integer c, Integer d, 
+            int diameter, unsigned int nbtries )
+{
+  typedef typename NaivePlane::Point Point;
+  typedef typename NaivePlane::InternalScalar InternalScalar;
+  IntegerComputer<Integer> ic;
+  Integer absA = ic.abs( a );
+  Integer absB = ic.abs( b );
+  Integer absC = ic.abs( c );
+  Integer x, y, z;
+  Dimension axis;
+  if ( ( absA >= absB ) && ( absA >= absC ) )
+    axis = 0;
+  else if ( ( absB >= absA ) && ( absB >= absC ) )
+    axis = 1;
+  else
+    axis = 2;
+  // Checks that points within the naive plane are correctly recognized.
+  unsigned int nb = 0;
+  unsigned int nbok = 0;
+  std::vector<Point> points( nbtries );
+  for ( unsigned int i = 0; i != nbtries; ++i )
+    {
+      Point & p = points[ i ];
+      p[ 0 ] = getRandomInteger<Integer>( -diameter+1, diameter ); 
+      p[ 1 ] = getRandomInteger<Integer>( -diameter+1, diameter ); 
+      p[ 2 ] = getRandomInteger<Integer>( -diameter+1, diameter );
+      x = (Integer) p[ 0 ];
+      y = (Integer) p[ 1 ];
+      z = (Integer) p[ 2 ];
+      switch ( axis ) {
+      case 0: p[ 0 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - b * y - c * z, a ) ); break;
+      case 1: p[ 1 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - a * x - c * z, b ) ); break;
+      case 2: p[ 2 ] = NumberTraits<Integer>::castToInt64_t( ic.ceilDiv( d - a * x - b * y, c ) ); break;
+      } 
+    }
+  trace.beginBlock( "Computing axis width." );
+  trace.info() << "- plane is " 
+               << d << " <= " << a << "*x"
+               << "+" << b << "*y"
+               << "+" << c << "*z"
+               << " <= d + max(|a|,|b|,|c|)"
+               << std::endl;
+  trace.info() << "- " << points.size() << " points tested in diameter " << diameter
+               << std::endl;
+  double min = -1.0;
+  for ( unsigned int i = 0; i < 3; ++i )
+    {
+      std::pair<InternalScalar, InternalScalar> width 
+        = NaivePlane::computeAxisWidth( i, points.begin(), points.end() );
+      double wn = NumberTraits<InternalScalar>::castToDouble( width.first );
+      double wd = NumberTraits<InternalScalar>::castToDouble( width.second );
+      trace.info() << "  (" << i << ") width=" << (wn/wd) << std::endl;
+      if ( min < 0.0 ) min = wn/wd;
+      else if ( wn/wd < min ) min = wn/wd;
+    }
+  ++nb, nbok += (min < 1.0 ) ? 1 : 0;
+  trace.info() << "(" << nbok << "/" << nb << ") min width = " << min
+               << " < 1.0" << std::endl;
+  trace.endBlock();
+  return nb == nbok;
+}
+
+template <typename Integer, typename NaivePlane>
+bool
+checkWidths( unsigned int nbplanes, int diameter, unsigned int nbtries )
+{
+  //using namespace Z3i;
+  //typedef ChordNaivePlane<Z3, Integer> NaivePlane;
+  unsigned int nb = 0;
+  unsigned int nbok = 0;
+  for ( unsigned int nbp = 0; nbp < nbplanes; ++nbp )
+    {
+      Integer a = getRandomInteger<Integer>( (Integer) 0, (Integer) diameter / 2 ); 
+      Integer b = getRandomInteger<Integer>( (Integer) 0, (Integer) diameter / 2 ); 
+      Integer c = getRandomInteger<Integer>( (Integer) 0, (Integer) diameter / 2 ); 
+      Integer d = getRandomInteger<Integer>( (Integer) 0, (Integer) diameter / 2 ); 
+      if ( ( a != 0 ) || ( b != 0 ) || ( c != 0 ) )
+        {
+          ++nb, nbok += checkWidth<Integer, NaivePlane>( a, b, c, d, diameter, nbtries ) ? 1 : 0;
+          if ( nb != nbok )
+            {
+              std::cerr << "[ERROR] (checkWidth) for plane " << a << " * x + " 
+                        << b << " * y + " << c << " * z = " << d << std::endl;
+              break;
+            }
+        }
+    }
+  return nb == nbok;
+}
+
+
+/**
  * Example of a test. To be completed.
  *
  */
@@ -618,7 +715,8 @@ int main( int argc, char** argv )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 8, 100, 200 )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 20, 100, 200 )
     && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int32_t> >( 100, 100, 200 )
-    && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int64_t> >( 2000, 100, 200 );
+    && checkManyPlanes<ChordNaivePlane<Z3i::Point, DGtal::int64_t> >( 2000, 100, 200 )
+    && checkWidths<DGtal::int64_t, ChordNaivePlane<Z3i::Point, DGtal::int64_t> >( 1000, 1000000, 1000 );
     // && checkManyPlanes<ChordNaivePlane<Z3, DGtal::int64_t> >( 500, 100, 200 )
     // && checkManyPlanes<ChordNaivePlane<Z3, DGtal::BigInteger> >( 10000, 10, 200 );
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
