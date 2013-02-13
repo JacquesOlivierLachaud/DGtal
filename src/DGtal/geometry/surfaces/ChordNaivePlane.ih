@@ -240,8 +240,15 @@ extend( const Point & p )
           else if ( _state.nbValid >= 2 )
             { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              newCurrentTriangle( _state, M );
-              computeNormal( _state );
+              if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+                { // Case where M is aligned with axis, width is M[ z ].
+                  result = M[ z ] * myWidth1 >= myWidth0 ? 1 : 2;
+                }
+              else
+                {
+                  newCurrentTriangle( _state, M );
+                  computeNormal( _state );
+                }
             }
           else
             { // in case 1, normal is already aligned with main axis.
@@ -312,8 +319,15 @@ isExtendable( const Point & p ) const
           else if ( _state.nbValid >= 2 )
             { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              newCurrentTriangle( _state, M );
-              computeNormal( _state );
+              if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+                { // Case where M is aligned with axis, width is M[ z ].
+                  result = M[ z ] * myWidth1 >= myWidth0 ? 1 : 2;
+                }
+              else
+                {
+                  newCurrentTriangle( _state, M );
+                  computeNormal( _state );
+                }
             }
           else
             { // in case 1, normal is already aligned with main axis.
@@ -368,9 +382,16 @@ satisfies( State & state, TInputIterator itB, TInputIterator itE ) const
             result = 2;
           else if ( state.nbValid >= 2 )
             { // in case 2 and 3, we have a starting triangle.
-              Point M = state.ptMax - state.ptMin;
-              newCurrentTriangle( state, M );
-              computeNormal( state );
+              Point M = _state.ptMax - _state.ptMin;
+              if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+                { // Case where M is aligned with axis, width is M[ z ].
+                  result = M[ z ] * myWidth1 >= myWidth0 ? 1 : 2;
+                }
+              else
+                {
+                  newCurrentTriangle( _state, M );
+                  computeNormal( _state );
+                }
             }
           else
             { // in case 1, normal is already aligned with main axis.
@@ -449,8 +470,18 @@ axisWidth( State & state, TInputIterator itB, TInputIterator itE ) const
       if ( state.nbValid >= 2 )
         { // in case 2 and 3, we have a starting triangle.
           Point M = state.ptMax - state.ptMin;
-          newCurrentTriangle( state, M );
-          computeNormal( state );
+          if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+            { // Case where M is aligned with axis, width is M[ z ].
+              width.first = M[ z ];
+              width.second = 1;
+              optimum = true;
+              break;
+            }
+          else
+            {
+              newCurrentTriangle( state, M );
+              computeNormal( state );
+            }
         }
       else
         { // in case 1, normal is already aligned with main axis.
@@ -565,8 +596,15 @@ extend( TInputIterator itB, TInputIterator itE )
           else if ( _state.nbValid >= 2 )
             { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              newCurrentTriangle( _state, M );
-              computeNormal( _state );
+              if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+                { // Case where M is aligned with axis, width is M[ z ].
+                  result = M[ z ] * myWidth1 >= myWidth0 ? 1 : 2;
+                }
+              else
+                {
+                  newCurrentTriangle( _state, M );
+                  computeNormal( _state );
+                }
             }
           else
             { // in case 1, normal is already aligned with main axis.
@@ -652,8 +690,15 @@ isExtendable( TInputIterator itB, TInputIterator itE ) const
           else if ( _state.nbValid >= 2 )
             { // in case 2 and 3, we have a starting triangle.
               Point M = _state.ptMax - _state.ptMin;
-              newCurrentTriangle( _state, M );
-              computeNormal( _state );
+              if ( ( M[ x ] == 0 ) && ( M[ y ] == 0 ) )
+                { // Case where M is aligned with axis, width is M[ z ].
+                  result = M[ z ] * myWidth1 >= myWidth0 ? 1 : 2;
+                }
+              else
+                {
+                  newCurrentTriangle( _state, M );
+                  computeNormal( _state );
+                }
             }
           else
             { // in case 1, normal is already aligned with main axis.

@@ -484,6 +484,9 @@ checkWidth( Integer a, Integer b, Integer c, Integer d,
   ++nb, nbok += (min < 1.0 ) ? 1 : 0;
   trace.info() << "(" << nbok << "/" << nb << ") min width = " << min
                << " < 1.0" << std::endl;
+  ++nb, nbok += (0.9 < min ) ? 1 : 0;
+  trace.info() << "(" << nbok << "/" << nb << ") min width = " << min
+               << " > 0.9" << std::endl;
   trace.endBlock();
   return nb == nbok;
 }
