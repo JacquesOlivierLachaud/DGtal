@@ -23,6 +23,7 @@ SET(DGTAL_TESTS_SRC
    testCloneAndAliases
    testClone2
    testOwningOrAliasingPtr
+   testDynDichoSet
    )
 
 FOREACH(FILE ${DGTAL_TESTS_SRC})
