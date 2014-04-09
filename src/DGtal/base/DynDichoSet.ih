@@ -77,12 +77,23 @@ inline
 typename DGtal::DynDichoSet<T>::ConstIterator
 DGtal::DynDichoSet<T>::find( const T& v ) const
 {
-#ifdef WITH_OPENMP
-  Size k = Bits::mostSignificantBit( myNb );
-  std::vector<ConstIterator> v( k+1 );
-#pragma omp parallel for schedule(dynamic)
-  
-
+  //#ifdef WITH_OPENMP
+#ifdef WITH_OPENMP_PRIME
+  std::vector<ConstIterator> its;
+  std::vector<Size> idx;
+  for ( Size j = 1; j < myData.size(); j <<= 1 )
+    if ( ( myNb & j ) != 0 )
+      {
+        its.push_back( end() );
+        idx.push_back( j );
+      }
+#pragma omp parallel for schedule(static)
+  for ( size_t i = 0; i < idx.size(); ++i )
+    its[ i ] = dichotomy( idx[ i ], 2*idx[ i ]-1, v );
+  for ( size_t i = 0; i < idx.size(); ++i )
+    if ( its[ i ] != end() ) return its[ i ];
+  return end();
+#else // WITH_OPENMP
   Size j = 1;
   while ( j < myData.size() )
     {
@@ -94,20 +105,20 @@ DGtal::DynDichoSet<T>::find( const T& v ) const
       j <<= 1;
     }
   return end();
-
-#ifdef WITH_OPENMP
-      std::vector<DigitalSet::Iterator> v( S.size() );
-      std::vector<uint8_t> b( v.size() );
-      for ( size_t i = 0; it != itE; ++it, ++i )
-	v[ i ] = it;
-#pragma omp parallel for schedule(dynamic)
-      for ( size_t i = 0; i < v.size(); ++i )
-	b[ i ] = shape.isSimple( *(v[ i ]) );
-
-      for ( size_t i = 0; i < v.size(); ++i )
-	if ( b[ i ] ) Q.push( v[ i ] ); 
-#else
-
+#endif
+}
+//-----------------------------------------------------------------------------
+template <typename T>
+inline
+typename DGtal::DynDichoSet<T>::ConstIterator
+DGtal::DynDichoSet<T>::dichotomyR( Size i, Size j, const T& v ) const
+{
+  if ( i == j ) return ( myData[ i ] == v ) ? ( myData.begin() + i ) : end();
+  else {
+    Size m = (i+j) / 2;
+    if ( myData[ m ] < v ) return dichotomyR( m+1, j, v );
+    else                   return dichotomyR( i,   m, v );
+  }
 }
 //-----------------------------------------------------------------------------
 template <typename T>
@@ -115,12 +126,16 @@ inline
 typename DGtal::DynDichoSet<T>::ConstIterator
 DGtal::DynDichoSet<T>::dichotomy( Size i, Size j, const T& v ) const
 {
-  if ( i == j ) return ( myData[ i ] == v ) ? ( myData.begin() + i ) : end();
-  else {
-    Size m = (i+j) / 2;
-    if ( myData[ m ] < v ) return dichotomy( m+1, j, v );
-    else                   return dichotomy( i,   m, v );
-  }
+  while ( j >= i + 3 ) 
+    {
+      Size m = (i+j) / 2;
+      if ( myData[ m ] < v )  i = m + 1;
+      else                    j = m;
+    }
+  while ( ( i < j ) && ( myData[ i ] < v ) ) ++i;
+  return ( myData[ i ] == v ) 
+    ? myData.begin() + i
+    : end();
 }
 //-----------------------------------------------------------------------------
 template <typename T>
@@ -154,7 +169,8 @@ inline
 void
 DGtal::DynDichoSet<T>::mergeInplace( Size j )
 {
-  // std::inplace_merge( myData.begin(), myData.begin() + j, myData.begin() + 2*j );
+  // std::inplace_merge is not better than mergeInplace on my macbook pro.
+  std::inplace_merge( myData.begin(), myData.begin() + j, myData.begin() + 2*j );
   std::vector<T> internal( 2*j );
   ConstIterator in1 = myData.begin();
   ConstIterator in2 = myData.begin() + j;

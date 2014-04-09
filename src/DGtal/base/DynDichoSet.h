@@ -124,6 +124,7 @@ namespace DGtal
     // ------------------------- Hidden services ------------------------------
   protected:
     ConstIterator dichotomy( Size i, Size j, const T& v ) const;
+    ConstIterator dichotomyR( Size i, Size j, const T& v ) const;
 
     // ------------------------- Internals ------------------------------------
   private:

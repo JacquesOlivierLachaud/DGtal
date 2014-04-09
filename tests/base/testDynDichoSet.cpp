@@ -49,7 +49,7 @@ bool testDynDichoSet( const std::string & name, int N, int R )
 {
   unsigned int nbok = 0;
   unsigned int nb = 0;
-  std::string str = "Testing set " + name; 
+  std::string str = "Testing insertion in set " + name; 
   trace.beginBlock ( str.c_str() );
   trace.info() << "- " << N << " insertions of random values in 0,..., " 
                << (R-1) << std::endl; 
@@ -57,6 +57,15 @@ bool testDynDichoSet( const std::string & name, int N, int R )
   for ( int i = 0; i < N; ++i )
     aSet.insert( rand() % R );
   trace.info() << "- set size = " << aSet.size() << std::endl;
+  trace.endBlock();
+
+  str = "Testing find in set " + name; 
+  trace.beginBlock ( str.c_str() );
+  trace.info() << "- find for each 0,...," << (R-1) << std::endl; 
+  unsigned int nb_found = 0;
+  for ( int i = 0; i < R; ++i )
+    nb_found += ( aSet.find( i ) != aSet.end() ) ? 1 : 0;
+  trace.info() << "- nb found = " << nb_found << std::endl;
   trace.endBlock();
 
   // nbok += true ? 1 : 0; 
@@ -83,7 +92,9 @@ int main( int argc, char** argv )
     testDynDichoSet<StdSet>( "std::set<int>", 100000, 1000000 )
     && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 100000, 1000000 )
     && testDynDichoSet<StdSet>( "std::set<int>", 1000000, 1000000 )
-    && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 1000000, 1000000 ); 
+    && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 1000000, 1000000 )
+    && testDynDichoSet<StdSet>( "std::set<int>", 10000000, 10000000 )
+    && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 10000000, 10000000 ); 
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   trace.endBlock();
   return res ? 0 : 1;
