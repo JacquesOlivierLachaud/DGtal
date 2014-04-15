@@ -63,7 +63,7 @@ bool testDynDichoSet( const std::string & name, int N, int R )
   trace.beginBlock ( str.c_str() );
   trace.info() << "- find for each 0,...," << (R-1) << std::endl; 
   unsigned int nb_found = 0;
-  for ( int i = 0; i < R; ++i )
+  for ( int i = R/3; i < 2*R/3; ++i )
     nb_found += ( aSet.find( i ) != aSet.end() ) ? 1 : 0;
   trace.info() << "- nb found = " << nb_found << std::endl;
   trace.endBlock();
@@ -89,7 +89,9 @@ int main( int argc, char** argv )
   typedef std::set<int> StdSet;
   typedef DGtal::DynDichoSet<int> DDSet;
   bool res = 
-    testDynDichoSet<StdSet>( "std::set<int>", 100000, 1000000 )
+    testDynDichoSet<StdSet>( "std::set<int>", 10000, 100000 )
+    && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 10000, 100000 )
+    && testDynDichoSet<StdSet>( "std::set<int>", 100000, 1000000 )
     && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 100000, 1000000 )
     && testDynDichoSet<StdSet>( "std::set<int>", 1000000, 1000000 )
     && testDynDichoSet<DDSet>( "DGtal::DynDichoSet<int>", 1000000, 1000000 )
