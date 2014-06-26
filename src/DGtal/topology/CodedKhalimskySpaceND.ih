@@ -1,0 +1,1722 @@
+/**
+ *  This program is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU Lesser General Public License as
+ *  published by the Free Software Foundation, either version 3 of the
+ *  License, or  (at your option) any later version.
+ *
+ *  This program is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ *
+ **/
+
+/**
+ * @file CodedKhalimskySpaceND.ih
+ * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
+ * Laboratory of Mathematics (CNRS, UMR 5807), University of Savoie, France
+ *
+ * @date 2011/02/08
+ *
+ * Implementation of inline methods defined in CodedKhalimskySpaceND.h
+ *
+ * This file is part of the DGtal library.
+ */
+
+
+//////////////////////////////////////////////////////////////////////////////
+#include "DGtal/kernel/NumberTraits.h"
+//////////////////////////////////////////////////////////////////////////////
+
+///////////////////////////////////////////////////////////////////////////////
+// IMPLEMENTATION of static constants
+///////////////////////////////////////////////////////////////////////////////
+
+#if (!defined(WIN32))
+/*template < Dimension dim, typename TInteger >
+const Dimension 
+DGtal::CodedKhalimskySpaceND< dim, TInteger >::dimension = dim;
+*/
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+const DGtal::Dimension 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::DIM = dim;
+
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Sign
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::POS = true;
+
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Sign
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::NEG = false;
+#endif
+
+///////////////////////////////////////////////////////////////////////////////
+// IMPLEMENTATION of inline methods.
+///////////////////////////////////////////////////////////////////////////////
+
+
+///////////////////////////////////////////////////////////////////////////////
+// CellDirectionIterator
+///////////////////////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+CellDirectionIterator( Cell cell, bool open )
+  : myDir( 0 ), myCell( cell ), myOpen( open )
+{
+  find();
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+CellDirectionIterator( SCell scell, bool open )
+  : myDir( 0 ), myCell( scell.myCoordinates ), myOpen( open )
+{
+  find();
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::Dimension 
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+operator*() const
+{
+  return myDir;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::CellDirectionIterator<dim, TInteger, TCode> & 
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+operator++()
+{
+  ++myDir;
+  find();
+  return *this;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+operator!=( const Integer ) const
+{
+  return myDir < dim;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+end() const
+{
+  return myDir >= dim;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+operator!=( const CellDirectionIterator & other ) const
+{
+  return myDir != other.myDir;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+operator==( const CellDirectionIterator & other ) const
+{
+  return myDir == other.myDir;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+find()
+{
+  if ( myOpen ) // loop on open coordinates
+    while ( ( myDir != dim ) 
+      && ( ( myCell.myCoordinates[ myDir ] & 0x1 ) == 0 ) )
+      ++myDir;
+  else // myOpen is false, loop on closed coordinates
+    while ( ( myDir != dim ) 
+      && ( myCell.myCoordinates[ myDir ] & 0x1 ) )
+      ++myDir;
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+// CodedKhalimskySpaceND
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// ----------------------- Standard services ------------------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+~CodedKhalimskySpaceND()
+{
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+CodedKhalimskySpaceND()
+{
+  init( Point::zero, Point::zero, true );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+init( const Point & lower,
+      const Point & upper,
+      bool closed )
+{
+  if ( ! lower.isLower( upper ) ) return false;
+  myIsClosed = closed;
+  myLower = lower;
+  myUpper = upper;
+  mySizes = myUpper - myLower;
+  
+  return computeLUTs();
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+computeLUTs()
+{
+  const Code zero   = 0;
+  const Code one    = 1;
+  Dimension shift   = 0;
+  myNbBits          = 0;
+  myNbCellTypes     = 1 << dimension;
+  myCodedMax        = 0;
+  myNbSpels         = one;
+  myBFCoords        = BitFields( dimension );
+  myCodedCoordMaxs  = Codes( dimension, zero );
+  myCodedCoordIncrs = Codes( dimension, zero );
+  // Computing masks for coordinates.
+  for ( Dimension i = 0; i < dimension; i++ )
+    {
+      // nb_bits : nb of bits used to define coordinate.
+      myNbSpels               *= mySizes[ i ];
+      Dimension nb_bits        = 1 + Bits::mostSignificantBit( mySizes[ i ] - 1 );
+      myBFCoords[ i ]          = BitField( ( ( one << nb_bits ) - one ) << shift, 
+                                           shift, nb_bits );
+      myCodedCoordMaxs[ i ]    = ( mySizes[ i ] - one ) << shift;
+      myCodedAllCoordMax      += myCodedCoordMaxs[ i ];
+      myCodedCoordIncrs[ i ]   = one << shift;
+      myNbBits                += nb_bits;
+      shift                   += nb_bits;
+    }
+
+  // Computing mask for all coords
+  myBFAllCoords = BitField( ( one << shift ) - one, 0, shift );
+  // Computing mask for directions 
+  myBFAllDirs   = BitField( ( ( one << dimension ) - one ) << dirs_shift, 
+                            dirs_shift, dimension );
+  myBFDirs      = BitFields( dimension );
+  Dimension dirs_shift = shift;
+  for ( Dimension i = 0; i < dimension; ++i, ++shift )
+    {
+      myBFDirs[ i ] = BitField( one << shift, shift, 1 );
+      myNbBits                += 1;
+      shift                   += 1;
+    }
+  // Computing mask for sign of SCell
+  myBFSign           = BitField( one << shift, shift, 1 );
+  /// Field to reach all directions and the sign in a coded SCell (no meaning for Cell).
+  myBFAllDirsAndSign = BitField( ( ( one << (dimension+1) ) - one ) << dirs_shift, 
+                                 dirs_shift, dimension+1 );;
+  myNbBits          += 1;
+  shift             += 1;
+
+  // Checks that Code type has enough bits to represents all cells
+  // within the given space bounds.
+  if ( myNbBits > NumberTraits<Code>::digits() )
+    {
+      trace.error() << "[CodedKhalimskySpaceND::init] Unable to create space. Requires "
+                    << myNbBits << " while Code type offers only "
+                    << NumberTraits<Code>::digits() << " bits." << std::endl;
+      return false;
+    }
+
+  // Computing incidence LUT.
+  computeIncidenceLUT();
+
+  // Computing permutation LUT.
+  computePermutationLUT();
+
+  // Computing coordinates for each cell type.
+  myCodedCoordIncrs = Codes( myNbCellTypes );
+  for ( Dimension i = 0; i < myNbCellTypes; ++i )
+    {
+      Code uid = 0;
+      for ( Dimension b = 0; b < dimension; ++b )
+	if ( i & ( 1 << b ) ) 
+          uid |= myCodedCoordIncrs[ b ];
+      myCodedCellTypeIncrs[ i ] = uid;
+    }
+
+  // Computing coordinates of vertices for each cell type.
+  for ( Dimension i = 0; i < myNbCellTypes; ++i )
+    {
+      Dimension nb = 0;
+      for ( Dimension j = 0; j < myNbCellTypes; ++j )
+	{
+	  if ( myLowIncident[ ( i << dimension ) + j ] )
+	    {
+              ASSERT( i >= j );
+              myCodedCoordsVtx[ ( i << dimension ) + nb ] 
+		= myCodedCellTypeIncrs[ i - j ];
+	      nb++;
+	    }
+	}
+      sort( myCodedCoordsVtx + ( i << dimension ),
+	    myCodedCoordsVtx + ( ( i << dimension ) + nb ) );
+    }
+
+  // Compute direct orientation LUT.
+  computeDirectOrientationLUT( n );
+
+  // Compute binomials.
+  KnUtils::binomials( n, m_binomials );
+  
+  // Check number of bits allowed.
+  return ( m_nb_bits <= max_sid_nb_bits )
+    && ( m_nb_bits - 1 <= max_uid_nb_bits );
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+computeDirectOrientationLUT()
+{
+  // Fills direct orientations LUT.
+  for ( Code i = 0; i < myNbCellTypes; ++i )
+    {
+      // make the cell with open directions i.
+      Code c = i << myBFDirs.shift;
+      
+      // For each direction.
+      for ( Dimension b = 0; b < n; ++b )
+	{
+	  Kn_sid inc_c = sincident( c, b, true );
+          Dimension offset = ( b << ( n + 1 ) ) + ( i << 1 );
+	  if ( decodeSign( inc_c ) == KnTypes::POS )
+	    {
+	      // TODO
+	      m_sid_direct_orientation[ offset ] = true;       // pos
+	      m_sid_direct_orientation[ offset + 1 ] = false;  // neg
+	    }
+	  else
+	    {
+	      m_sid_direct_orientation[ offset ] = false;      // pos
+	      m_sid_direct_orientation[ offset + 1 ] = true;   // neg
+	    }
+	}
+    }
+  return true;
+}
+
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Size
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+size( DGtal::Dimension k ) const
+{
+  ASSERT( k < dimension );
+  return myUpper[ k ] + NumberTraits<Integer>::ONE - myLower[ k ];
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+computeIncidenceLUT()
+{
+  Dimension k; // it is the directions of the first cell.
+  Dimension l; // it is the directions of the second cell.
+  Dimension b; // it is the current direction.
+  Dimension nb_celltypes = 1 << dimension; // the number of possible directions.
+  myLowIncident          = std::vector<bool>( 1 << (2*dimension) );
+  myUpIncident           = std::vector<bool>( 1 << (2*dimension) );
+  // We compute the low-incidence LUT (meaning [l] in the low-incidence of [k])
+  // We compute the up-incidence LUT (meaning [l] in the up-incidence of [k])
+  // Two nested loops to examine each case.
+  for ( k = 0; k < nb_celltypes; ++k ) // loop on all directions
+    for ( l = 0; l < nb_celltypes; ++l ) // loop on all directions
+      {
+	bool low_incident = true;
+	bool up_incident = true;
+	for ( b = 1; b < nb_celltypes; b <<= 1 ) // loop on all bits
+	  {
+	    if ( ( k & b ) && ( ! ( l & b ) ) )
+	      up_incident = false;
+	    else if ( ( ! ( k & b ) ) && ( l & b ) )
+	      low_incident = false;
+	    // proceed to next bit otherwise.
+	  }
+	Dimension offset        = ( k << dimension ) + l;
+	myLowIncident[ offset ] = low_incident;
+	myUpIncident[ offset ]  = up_incident;
+      }
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+computePermutationLUT()
+{
+  Code one               = 1;
+  Code set_sign          = myNbCellTypes; // strongest bi
+  // Initialize permutation LUT.
+  myPermutation          = std::vector<bool>( myNbCellTypes * dimension );
+  // Set incidence matrix to 0.
+  mySLowIncidenceMatrix  = std::vector<DGtal::int8>( 4 * myNbCellTypes * myNbCellTypes, 0 );
+  // Set size of topology incident vectors.
+  mySIncident1           = Codes( 2 * myNbCellTypes * dimension );
+  // Fills incidence LUTs and matrix.
+  for ( Code i = 0; i < myNbCellTypes; ++i )
+    {
+      // First incident are low, second incident are up
+      bool pos_cell = true;
+      bool up = false;
+      bool sign = up ? pos_cell : ! pos_cell;
+      for ( DGtal::Dimension b = 0; b < dimension; ++i )
+        {
+          if ( i ^ ( one << b ) ) // cell is open along coordinate b.
+            sign = ! sign;
+	  Dimension unsigned_offset = ( b << dimension ) + i;
+	  myPermutation[ unsigned_offset ] = sign;
+	  Dimension signed_offset   = ( b << (dimension+1) ) + i; // + ( i << 1 );
+          Dimension j               = ( i ^ ( one << b ) );
+          mySIncident1[ signed_offset ] = j + ( sign ? 0 : set_sign );
+          mySIncident2[ signed_offset ] = j + ( sign ? set_sign : 0 );
+          mySIncident1[ signed_offset + nb_cell_types ] = j + ( sign ? set_sign : 0 );
+          mySIncident2[ signed_offset + nb_cell_types ] = j + ( sign ? 0 : set_sign );
+	  if ( i & ( one << b ) )
+	    {
+              mySLowIncidenceMatrix[ (i << (dimension+1)) + j ]
+ 		= ( sign ? 1 : -1 );
+              mySLowIncidenceMatrix[ (i << (dimension+1)) + j + set_sign ]
+ 		= ( sign ? -1 : 1 );
+              mySLowIncidenceMatrix[ ((i+set_sign) << (dimension+1)) + j ]
+ 		= ( sign ? -1 : 1 );
+              mySLowIncidenceMatrix[ ((i+set_sign) << (dimension+1)) + j + set_sign ]
+ 		= ( sign ? 1 : -1 );
+	    }
+	}
+    }
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+min( DGtal::Dimension k ) const
+{
+  return myLower[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+max( DGtal::Dimension k ) const
+{
+  return myUpper[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point &
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+lowerBound() const
+{
+  return myLower;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point &
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+upperBound() const
+{
+  return myUpper;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+lowerCell() const
+{
+  return myCellLower;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+upperCell() const
+{
+  return myCellUpper;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+isSpaceClosed() const
+{
+  return myIsClosed;
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uCell( const Point & kp ) const
+{
+  return Cell( kp );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uCell( const Point & p, const Cell & c ) const
+{
+  Cell nc( p );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ] + ( c.myCoordinates[ i ] & 0x1 );
+  return nc;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sCell( const Point & kp, Sign sign ) const
+{
+  return SCell( kp, sign == POS );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sCell( const Point & p, const SCell & c ) const
+{
+  SCell nc( p, c.myPositive );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ] + ( c.myCoordinates[ i ] & 0x1 );
+  return nc;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uSpel( const Point & p ) const
+{
+  Cell nc( p );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ] + 1;
+  return nc;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSpel( const Point & p, Sign sign ) const
+{
+  SCell nc( p, sign );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ] + 1;
+  return nc;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uPointel( const Point & p ) const
+{
+  Cell nc( p );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ];
+  return nc;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sPointel( const Point & p, Sign sign ) const
+{
+  SCell nc( p, sign );
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    nc.myCoordinates[ i ] += p[ i ];
+  return nc;
+}
+//-----------------------------------------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Integer
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uKCoord( const Cell & c, DGtal::Dimension k ) const
+{
+  ASSERT( k < DIM );
+  return c.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Integer 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uCoord( const Cell & c, DGtal::Dimension k ) const
+{
+  ASSERT( k < DIM );
+  return c.myCoordinates[ k ] >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uKCoords( const Cell & c ) const
+{
+  return c.myCoordinates;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uCoords( const Cell & c ) const
+{
+  Point dp;
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    dp[ i ] = c.myCoordinates[ i ] >> 1;
+  return dp;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Integer
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sKCoord( const SCell & c, DGtal::Dimension k ) const
+{
+  ASSERT( k < DIM );
+  return c.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Integer 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sCoord( const SCell & c, DGtal::Dimension k ) const
+{
+  ASSERT( k < DIM );
+  return c.myCoordinates[ k ] >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sKCoords( const SCell & c ) const
+{
+  return c.myCoordinates;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Point
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sCoords( const SCell & c ) const
+{
+  Point dp;
+  for ( DGtal::Dimension i = 0; i < DIM; ++i )
+    dp[ i ] = c.myCoordinates[ i ] >> 1;
+  return dp;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Sign
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSign( const SCell & c ) const
+{
+  return c.myPositive ? POS : NEG;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+signs( const Cell & p, Sign s ) const
+{
+  return sCell( p.myCoordinates, s );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+unsigns( const SCell & p ) const
+{
+  return uCell( p.myCoordinates );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sOpp( const SCell & p ) const
+{
+  return sCell( p.myCoordinates, ! p.myPositive );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uSetKCoord( Cell & c, DGtal::Dimension k, const Integer & i ) const
+{
+  ASSERT( k < DIM 
+    && myCellLower.myCoordinates[ k ] <= i 
+    && i <= myCellUpper.myCoordinates[ k ] );
+  c.myCoordinates[ k ] = i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSetKCoord( SCell & c, DGtal::Dimension k, const Integer & i ) const
+{
+  ASSERT( k < DIM 
+    && myCellLower.myCoordinates[ k ] <= i 
+    && i <= myCellUpper.myCoordinates[ k ] );
+  c.myCoordinates[ k ] = i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uSetCoord( Cell & c, DGtal::Dimension k, Integer i ) const
+{
+  ASSERT( k < DIM );
+  i = ( i << 1 ) + ( c.myCoordinates[ k ] & 1 );
+  ASSERT( myCellLower.myCoordinates[ k ] <= i 
+    && i <= myCellUpper.myCoordinates[ k ] );
+  c.myCoordinates[ k ] = i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSetCoord( SCell & c, DGtal::Dimension k, Integer i ) const
+{
+  ASSERT( k < DIM );
+  i = ( i << 1 ) + ( c.myCoordinates[ k ] & 1 );
+  ASSERT( myCellLower.myCoordinates[ k ] <= i 
+    && i <= myCellUpper.myCoordinates[ k ] );
+  c.myCoordinates[ k ] = i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uSetKCoords( Cell & c, const Point & kp ) const
+{
+  c.myCoordinates = kp;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSetKCoords( SCell & c, const Point & kp ) const
+{
+  c.myCoordinates = kp;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uSetCoords( Cell & c, const Point & p ) const
+{
+  Integer i;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      i = ( p[ k ] << 1 ) + ( c.myCoordinates[ k ] & 1 );
+      ASSERT( myCellLower.myCoordinates[ k ] <= i 
+        && i <= myCellUpper.myCoordinates[ k ] );
+      c.myCoordinates[ k ] = i;
+    }
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSetCoords( SCell & c, const Point & p ) const
+{
+  Integer i;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      i = ( p[ k ] << 1 ) + ( c.myCoordinates[ k ] & 1 );
+      ASSERT( myCellLower.myCoordinates[ k ] <= i 
+        && i <= myCellUpper.myCoordinates[ k ] );
+      c.myCoordinates[ k ] = i;
+    }
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sSetSign( SCell & c, Sign s ) const
+{
+  c.myPositive = ( s == POS );
+}
+//-----------------------------------------------------------------------------
+// ------------------------- Cell topology services -----------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uTopology( const Cell & p ) const
+{
+  Integer i = NumberTraits<Integer>::ZERO;
+  Integer j = NumberTraits<Integer>::ONE;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( p.myCoordinates[ k ] & NumberTraits<Integer>::ONE )
+  i |= j;
+      j <<= 1;
+    }
+  return i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sTopology( const SCell & p ) const
+{
+  Integer i = NumberTraits<Integer>::ZERO;
+  Integer j = NumberTraits<Integer>::ONE;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( p.myCoordinates[ k ] & NumberTraits<Integer>::ONE )
+  i |= j;
+      j <<= 1;
+    }
+  return i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::Dimension
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uDim( const Cell & p ) const
+{
+  Integer i = NumberTraits<Integer>::ZERO;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    if ( p.myCoordinates[ k ] & NumberTraits<Integer>::ONE )
+      ++i;
+  return i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::Dimension
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDim( const SCell & p ) const
+{
+  Integer i = NumberTraits<Integer>::ZERO;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    if ( p.myCoordinates[ k ] & NumberTraits<Integer>::ONE )
+      ++i;
+  return i;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIsSurfel( const Cell & b ) const
+{
+  return uDim( b ) == ( DIM - 1 );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIsSurfel( const SCell & b ) const
+{
+ return sDim( b ) == ( DIM - 1 );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIsOpen( const Cell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] & NumberTraits<Integer>::ONE;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIsOpen( const SCell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] & NumberTraits<Integer>::ONE;
+}
+
+//-----------------------------------------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::DirIterator
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uDirs( const Cell & p ) const
+{
+  return DirIterator( p, true );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::DirIterator
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDirs( const SCell & p ) const
+{
+  return DirIterator( p, true );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::DirIterator
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uOrthDirs( const Cell & p ) const
+{
+  return DirIterator( p, false );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::DirIterator
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sOrthDirs( const SCell & p ) const
+{
+  return DirIterator( p, false );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::Dimension 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uOrthDir( const Cell & s ) const
+{
+  DirIterator it( s, false );
+  ASSERT( ! it.end() );
+  return *it;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+DGtal::Dimension 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sOrthDir( const SCell & s ) const
+{
+  DirIterator it( s, false );
+  ASSERT( ! it.end() );
+  return *it;
+}
+//-----------------------------------------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uFirst( const Cell & p ) const
+{
+  return uCell( myLower, p );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uLast( const Cell & p ) const
+{
+  return uCell( myUpper, p );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetIncr( const Cell & p, DGtal::Dimension k ) const
+{
+  Cell q = p;
+  q.myCoordinates[ k ] += 2;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIsMax( const Cell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] >= myCellUpper.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIsInside( const Cell & p, DGtal::Dimension k ) const
+{
+  return (p.myCoordinates[ k ] <= uLast(p).myCoordinates[ k ]) &&
+    (p.myCoordinates[ k ] >= uFirst(p).myCoordinates[ k ]);
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetMax( const Cell & p, DGtal::Dimension k ) const
+{
+  return uProjection( p, uLast(p), k );
+  // return uProjection( p, myCellUpper, k );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetDecr( const Cell & p, DGtal::Dimension k ) const
+{
+  Cell q = p;
+  q.myCoordinates[ k ] -= 2;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIsMin( const Cell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] <= myCellLower.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetMin( const Cell & p, DGtal::Dimension k ) const
+{
+  return uProjection( p, uFirst(p), k );
+  //return uProjection( p, myCellLower, k );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetAdd( const Cell & p, DGtal::Dimension k, const Integer & x ) const
+{
+  Cell q = p;
+  q.myCoordinates[ k ] += 2*x;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uGetSub( const Cell & p, DGtal::Dimension k, const Integer & x ) const
+{
+  Cell q = p;
+  q.myCoordinates[ k ] -= 2*x;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uDistanceToMax( const Cell & p, DGtal::Dimension k ) const
+{
+  return ( myCellUpper.myCoordinates[ k ] - p.myCoordinates[ k ] ) >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uDistanceToMin( const Cell & p, DGtal::Dimension k ) const
+{
+  return ( p.myCoordinates[ k ] - myCellLower.myCoordinates[ k ] ) >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uTranslation( const Cell & p, const Vector & vec ) const
+{
+  Cell q = p;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    q.myCoordinates[ k ] += ( vec[ k ] << 1 );
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uProjection( const Cell & p, const Cell & bound, DGtal::Dimension k ) const
+{
+  Cell q = p;
+  q.myCoordinates[ k ] = bound.myCoordinates[ k ];
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uProject( Cell & p, const Cell & bound, DGtal::Dimension k ) const
+{
+  p.myCoordinates[ k ] = bound.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uNext( Cell & p, const Cell & lower, const Cell & upper ) const
+{
+  DGtal::Dimension k = NumberTraits<Dimension>::ZERO;
+  if ( uCoord( p, k ) == uCoord( upper, k ) )
+    {
+      if ( p == upper ) return false;
+      uProject( p, lower, k );
+      for ( k = 1; k < DIM; ++k )
+  {
+    if ( uCoord( p, k ) == uCoord( upper, k ) )
+      uProject( p, lower, k );
+    else  
+      {
+        p.myCoordinates[ k ] += 2;
+        break;
+      }
+  }
+      return true;
+    }
+  p.myCoordinates[ k ] += 2;
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+///////////////////////////////////////////////////////////////////////////////
+//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sFirst( const SCell & p ) const
+{
+  return sCell( myLower, p );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sLast( const SCell & p ) const
+{
+  return sCell( myUpper, p );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetIncr( const SCell & p, DGtal::Dimension k ) const
+{
+  SCell q = p;
+  q.myCoordinates[ k ] += 2;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIsMax( const SCell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] >= myCellUpper.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIsInside( const SCell & p, DGtal::Dimension k ) const
+{
+  return (p.myCoordinates[ k ] <= sLast(p).myCoordinates[ k ]) &&
+    (p.myCoordinates[ k ] >= sFirst(p).myCoordinates[ k ]);
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetMax( const SCell & p, DGtal::Dimension k ) const
+{
+  return sProjection( p, sLast(p), k );
+  //  return sProjection( p, myCellUpper, k );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetDecr( const SCell & p, DGtal::Dimension k ) const
+{
+  SCell q = p;
+  q.myCoordinates[ k ] -= 2;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIsMin( const SCell & p, DGtal::Dimension k ) const
+{
+  return p.myCoordinates[ k ] <= myCellLower.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetMin( const SCell & p, DGtal::Dimension k ) const
+{
+  return sProjection( p, sFirst(p), k );
+  //  return sProjection( p, myCellLower, k );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetAdd( const SCell & p, DGtal::Dimension k, const Integer & x ) const
+{
+  SCell q = p;
+  q.myCoordinates[ k ] += 2*x;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sGetSub( const SCell & p, DGtal::Dimension k, const Integer & x ) const
+{
+  SCell q = p;
+  q.myCoordinates[ k ] -= 2*x;
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDistanceToMax( const SCell & p, DGtal::Dimension k ) const
+{
+  return ( myCellUpper.myCoordinates[ k ] - p.myCoordinates[ k ] ) >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+TInteger
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDistanceToMin( const SCell & p, DGtal::Dimension k ) const
+{
+  return ( p.myCoordinates[ k ] - myCellLower.myCoordinates[ k ] ) >> 1;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sTranslation( const SCell & p, const Vector & vec ) const
+{
+  SCell q = p;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    q.myCoordinates[ k ] += ( vec[ k ] << 1 );
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sProjection( const SCell & p, const SCell & bound, DGtal::Dimension k ) const
+{
+  SCell q = p;
+  q.myCoordinates[ k ] = bound.myCoordinates[ k ];
+  return q;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sProject( SCell & p, const SCell & bound, DGtal::Dimension k ) const
+{
+  p.myCoordinates[ k ] = bound.myCoordinates[ k ];
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sNext( SCell & p, const SCell & lower, const SCell & upper ) const
+{
+  DGtal::Dimension k = NumberTraits<Dimension>::ZERO;
+  if ( sCoord( p, k ) == sCoord( upper, k ) )
+    {
+      if ( p == upper ) return false;
+      sProject( p, lower, k );
+      for ( k = 1; k < DIM; ++k )
+  {
+    if ( sCoord( p, k ) == sCoord( upper, k ) )
+      sProject( p, lower, k );
+    else  
+      {
+        p.myCoordinates[ k ] += 2;
+        break;
+      }
+  }
+      return true;
+    }
+  p.myCoordinates[ k ] += 2;
+  return true;
+}
+
+//-----------------------------------------------------------------------------
+// ----------------------- Neighborhood services --------------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uNeighborhood( const Cell & c ) const
+{
+  Cells N;
+  N.push_back( c );
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( ! uIsMin( c, k ) )
+  N.push_back( uGetDecr( c, k ) );
+      if ( ! uIsMax( c, k ) )
+  N.push_back( uGetIncr( c, k ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sNeighborhood( const SCell & c ) const
+{
+  SCells N;
+  N.push_back( c );
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( ! sIsMin( c, k ) )
+  N.push_back( sGetDecr( c, k ) );
+      if ( ! sIsMax( c, k ) )
+  N.push_back( sGetIncr( c, k ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uProperNeighborhood( const Cell & c ) const
+{
+  Cells N;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( ! uIsMin( c, k ) )
+  N.push_back( uGetDecr( c, k ) );
+      if ( ! uIsMax( c, k ) )
+  N.push_back( uGetIncr( c, k ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sProperNeighborhood( const SCell & c ) const
+{
+  SCells N;
+  for ( DGtal::Dimension k = 0; k < DIM; ++k )
+    {
+      if ( ! sIsMin( c, k ) )
+  N.push_back( sGetDecr( c, k ) );
+      if ( ! sIsMax( c, k ) )
+  N.push_back( sGetIncr( c, k ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uAdjacent( const Cell & p, DGtal::Dimension k, bool up ) const
+{
+  return up ? uGetIncr( p, k ) : uGetDecr( p, k );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell 
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sAdjacent( const SCell & p, DGtal::Dimension k, bool up ) const
+{
+  return up ? sGetIncr( p, k ) : sGetDecr( p, k );
+}
+
+// ----------------------- Incidence services --------------------------
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uIncident( const Cell & c, DGtal::Dimension k, bool up ) const
+{
+  ASSERT( k < dim );
+  ASSERT( ( ! up ) || ( uKCoord( c, k ) < uKCoord( myCellUpper, k ) ) ); 
+  ASSERT( (   up ) || ( uKCoord( myCellLower, k ) < uKCoord( c, k ) ) ); 
+  Cell d( c );
+  if ( up ) ++d.myCoordinates[ k ];
+  else      --d.myCoordinates[ k ];
+  return d;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIncident( const SCell & c, DGtal::Dimension k, bool up ) const
+{
+  ASSERT( k < dim );
+  ASSERT( ( ! up ) || ( sKCoord( c, k ) < uKCoord( myCellUpper, k ) ) ); 
+  ASSERT( (   up ) || ( uKCoord( myCellLower, k ) < sKCoord( c, k ) ) ); 
+  SCell d( c );
+  bool sign = up ? d.myPositive : ! d.myPositive;
+  for ( DGtal::Dimension i = 0; i <= k; ++i )
+    if ( sIsOpen( d, i ) ) 
+      sign = ! sign;
+  d.myPositive = sign;
+  if ( up ) ++d.myCoordinates[ k ];
+  else      --d.myCoordinates[ k ];
+  return d;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uLowerIncident( const Cell & c ) const
+{
+  Cells N;
+  for ( DirIterator q = uDirs( c ); q != 0; ++q )
+    {
+      DGtal::Dimension k = *q;
+      Integer x = uKCoord( c, k );
+      if ( uKCoord( myCellLower, k ) < x )
+  N.push_back( uIncident( c, k, false ) );
+      if ( x < uKCoord( myCellUpper, k ) )
+  N.push_back( uIncident( c, k, true ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uUpperIncident( const Cell & c ) const
+{
+  Cells N;
+  for ( DirIterator q = uOrthDirs( c ); q != 0; ++q )
+    {
+      DGtal::Dimension k = *q;
+      Integer x = uKCoord( c, k );
+      if ( uKCoord( myCellLower, k ) < x )
+  N.push_back( uIncident( c, k, false ) );
+      if ( x < uKCoord( myCellUpper, k ) )
+  N.push_back( uIncident( c, k, true ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sLowerIncident( const SCell & c ) const
+{
+  SCells N;
+  for ( DirIterator q = sDirs( c ); q != 0; ++q )
+    {
+      DGtal::Dimension k = *q;
+      Integer x = sKCoord( c, k );
+      if ( uKCoord( myCellLower, k ) < x )
+  N.push_back( sIncident( c, k, false ) );
+      if ( x < uKCoord( myCellUpper, k ) )
+  N.push_back( sIncident( c, k, true ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sUpperIncident( const SCell & c ) const
+{
+  SCells N;
+  for ( DirIterator q = sOrthDirs( c ); q != 0; ++q )
+    {
+      DGtal::Dimension k = *q;
+      Integer x = sKCoord( c, k );
+      if ( uKCoord( myCellLower, k ) < x )
+  N.push_back( sIncident( c, k, false ) );
+      if ( x < uKCoord( myCellUpper, k ) )
+  N.push_back( sIncident( c, k, true ) );
+    }
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uAddFaces( Cells& faces, const Cell& c, Dimension axis ) const
+{
+  // std::cerr << c << std::endl;
+  DGtal::Dimension dim_of_c = uDim( c );
+  if ( axis >= dim_of_c ) return;
+  DirIterator q = uDirs( c );
+  for ( Dimension i = 0; i < axis; ++i ) ++q;
+  Cell f1 = uIncident( c, *q, false );
+  Cell f2 = uIncident( c, *q, true );
+  faces.push_back( f1 );
+  faces.push_back( f2 );
+  uAddFaces( faces, f1, axis );
+  uAddFaces( faces, f2, axis );
+  uAddFaces( faces, c, axis+1 );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uAddCoFaces( Cells& cofaces, const Cell& c, Dimension axis ) const
+{
+  // std::cerr << c << std::endl;
+  DGtal::Dimension dim_of_c = uDim( c );
+  if ( axis >= dimension - dim_of_c ) return;
+  DirIterator q = uOrthDirs( c );
+  for ( Dimension i = 0; i < axis; ++i ) ++q;
+  Cell f1 = uIncident( c, *q, false );
+  Cell f2 = uIncident( c, *q, true );
+  cofaces.push_back( f1 );
+  cofaces.push_back( f2 );
+  uAddCoFaces( cofaces, f1, axis );
+  uAddCoFaces( cofaces, f2, axis );
+  uAddCoFaces( cofaces, c, axis+1 );
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uFaces( const Cell & c ) const
+{
+  Cells N;
+  uAddFaces( N, c, 0 );
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+uCoFaces( const Cell & c ) const
+{
+  Cells N;
+  uAddCoFaces( N, c, 0 );
+  return N;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDirect( const SCell & p, DGtal::Dimension k ) const
+{
+  ASSERT( k < dim );
+  bool sign = p.myPositive;
+  for ( DGtal::Dimension i = 0; i <= k; ++i )
+    if ( sIsOpen( p, i ) ) 
+      sign = ! sign;
+  return sign;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sDirectIncident( const SCell & p, DGtal::Dimension k ) const
+{
+  ASSERT( k < dim );
+  SCell d( p );
+  bool sign = d.myPositive;
+  for ( DGtal::Dimension i = 0; i <= k; ++i )
+    if ( sIsOpen( d, i ) ) 
+      sign = ! sign;
+
+  bool up = sign;
+  d.myPositive = POS;
+  ASSERT( ( ! up ) || ( sKCoord( d, k ) < uKCoord( myCellUpper, k ) ) ); 
+  ASSERT( (   up ) || ( uKCoord( myCellLower, k ) < sKCoord( d, k ) ) ); 
+  if ( up )  ++d.myCoordinates[ k ];
+  else  --d.myCoordinates[ k ];
+  
+  return d;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+sIndirectIncident( const SCell & p, DGtal::Dimension k ) const
+{
+  ASSERT( k < dim );
+  SCell d( p );
+  bool sign = d.myPositive;
+  for ( DGtal::Dimension i = 0; i <= k; ++i )
+    if ( sIsOpen( d, i ) ) 
+      sign = ! sign;
+
+  bool up = ! sign;
+  d.myPositive = NEG;
+  ASSERT( ( ! up ) || ( sKCoord( d, k ) < uKCoord( myCellUpper, k ) ) ); 
+  ASSERT( (   up ) || ( uKCoord( myCellLower, k ) < sKCoord( d, k ) ) ); 
+
+  if ( up ) ++d.myCoordinates[ k ];
+  else --d.myCoordinates[ k ];
+  
+  return d;
+}
+
+
+
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+void
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+selfDisplay ( std::ostream & out ) const
+{
+  out << "[CodedKhalimskySpaceND]";
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+bool
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+isValid() const
+{
+  return true;
+}
+
+
+
+///////////////////////////////////////////////////////////////////////////////
+// Implementation of inline functions                                        //
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+std::ostream&
+DGtal::operator<< ( std::ostream & out, 
+      const CodedKhalimskySpaceND<dim, TInteger, TCode> & object )
+{
+  object.selfDisplay( out );
+  return out;
+}
+
+//                                                                           //
+///////////////////////////////////////////////////////////////////////////////
+
+
