@@ -39,6 +39,7 @@
 #include "DGtal/topology/KhalimskySpaceND.h"
 #include "DGtal/topology/SurfelAdjacency.h"
 #include "DGtal/topology/SurfelNeighborhood.h"
+#include "DGtal/topology/CodedKhalimskySpaceND.h"
 #include "DGtal/shapes/Shapes.h"
 #include "DGtal/topology/helpers/Surfaces.h"
 #include "DGtal/io/boards/Board2D.h"
@@ -491,6 +492,17 @@ bool testCellularGridSpaceNDCoFaces()
   return nb == nbok;
 }
 
+bool
+testCodedKhalimskySpaceND()
+{
+  typedef CodedKhalimskySpaceND<2, DGtal::int32_t, DGtal::uint64_t> KSpace;
+  typedef KSpace::Point Point;
+  KSpace K;
+  Point low( -2, -2 );
+  Point up( 2, 2 );
+  bool ok = K.init( low, up, true );
+  return ok;
+}
 ///////////////////////////////////////////////////////////////////////////////
 // Standard services - public :
 
@@ -509,21 +521,23 @@ int main( int argc, char** argv )
   BOOST_CONCEPT_ASSERT(( CCellularGridSpaceND< K3 > ));
   BOOST_CONCEPT_ASSERT(( CCellularGridSpaceND< K4 > ));
 
-  bool res = testCellularGridSpaceND<K2>()
-    && testCellularGridSpaceND<K3>()
-    && testCellularGridSpaceND<K4>()
-    && testSurfelAdjacency<K2>()
-    && testSurfelAdjacency<K3>()
-    && testSurfelAdjacency<K4>()
-    && testCellDrawOnBoard<K2>()
-    && testFindABel<K3>()
-    && testCellularGridSpaceNDFaces<K2>()
-    && testCellularGridSpaceNDFaces<K3>()
-    && testCellularGridSpaceNDFaces<K4>()
-    && testCellularGridSpaceNDCoFaces<K2>()
-    && testCellularGridSpaceNDCoFaces<K3>()
-    && testCellularGridSpaceNDCoFaces<K4>();
+  // bool res = testCellularGridSpaceND<K2>()
+  //   && testCellularGridSpaceND<K3>()
+  //   && testCellularGridSpaceND<K4>()
+  //   && testSurfelAdjacency<K2>()
+  //   && testSurfelAdjacency<K3>()
+  //   && testSurfelAdjacency<K4>()
+  //   && testCellDrawOnBoard<K2>()
+  //   && testFindABel<K3>()
+  //   && testCellularGridSpaceNDFaces<K2>()
+  //   && testCellularGridSpaceNDFaces<K3>()
+  //   && testCellularGridSpaceNDFaces<K4>()
+  //   && testCellularGridSpaceNDCoFaces<K2>()
+  //   && testCellularGridSpaceNDCoFaces<K3>()
+  //   && testCellularGridSpaceNDCoFaces<K4>();
 
+  bool res = testCodedKhalimskySpaceND();
+  
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   trace.endBlock();
   return res ? 0 : 1;

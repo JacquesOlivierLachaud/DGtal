@@ -43,8 +43,10 @@
 #include <iostream>
 #include <set>
 #include <map>
+#include <algorithm>
 #include "DGtal/base/Common.h"
 #include "DGtal/kernel/CInteger.h"
+#include "DGtal/kernel/CUnsignedNumber.h"
 #include "DGtal/kernel/PointVector.h"
 #include "DGtal/kernel/SpaceND.h"
 //////////////////////////////////////////////////////////////////////////////
@@ -52,177 +54,6 @@
 namespace DGtal
 {
 
-  /**
-     @brief Represents an (unsigned) cell in a cellular grid space by its
-     Khalimsky coordinates.
-  */
-  template < Dimension dim,
-             typename TInteger = DGtal::int32_t >
-  struct KhalimskyCell
-  {
-
-    //Integer must be a model of the concept CInteger.
-    BOOST_CONCEPT_ASSERT(( CInteger<TInteger> ) );
-
-  public:
-    typedef TInteger Integer;
-
-    typedef typename NumberTraits<Integer>::UnsignedVersion UnsignedInteger;
-    typedef PointVector< dim, Integer > Point;
-
-    Point myCoordinates;
-
-    /**
-     * Constructor.
-     */
-    KhalimskyCell( Integer dummy = 0 );
-
-    /**
-     * Copy constructor.
-     *
-     * @param other any other cell.
-     */
-    KhalimskyCell( const KhalimskyCell & other );
-
-    /**
-     * constructor from point.
-     *
-     * @param point any point.
-     */
-    KhalimskyCell( const Point & point );
-
-    /**
-     * Copy constructor.
-     *
-     * @param other any other cell.
-     */
-    KhalimskyCell & operator=( const KhalimskyCell & other );
-
-    /**
-       Equality operator.
-       @param other any other cell.
-    */
-    bool operator==( const KhalimskyCell & other ) const;
-
-    /**
-       Difference operator.
-       @param other any other cell.
-    */
-    bool operator!=( const KhalimskyCell & other ) const;
-
-    /**
-       Inferior operator. (lexicographic order).
-       @param other any other cell.
-    */
-    bool operator<( const KhalimskyCell & other ) const;
-
-    // --------------- CDrawableWithBoard2D realization -------------------
-  public:
-
-    /**
-     * Default drawing style object.
-     * @return the dyn. alloc. default style for this object.
-     */
-    //DrawableWithBoard2D* defaultStyle( std::string mode = "" ) const;
-
-    /**
-     * @return the style name used for drawing this object.
-     */
-    std::string className() const;
-
-  };
-
-  template < Dimension dim,
-             typename TInteger >
-  std::ostream &
-  operator<<( std::ostream & out,
-              const KhalimskyCell< dim, TInteger > & object );
-
-  /**
-     @brief Represents a signed cell in a cellular grid space by its
-     Khalimsky coordinates and a boolean value.
-  */
-  template < Dimension dim,
-             typename TInteger = DGtal::int32_t >
-  struct SignedKhalimskyCell
-  {
-    //Integer must be a model of the concept CInteger.
-    BOOST_CONCEPT_ASSERT(( CInteger<TInteger> ) );
-
-  public:
-    typedef TInteger Integer;
-    typedef typename NumberTraits<Integer>::UnsignedVersion UnsignedInteger;
-    typedef PointVector< dim, Integer > Point;
-
-    Point myCoordinates;
-    bool myPositive;
-
-    /**
-     * Constructor.
-     */
-    SignedKhalimskyCell( Integer dummy = 0 );
-
-    /**
-     * Copy constructor.
-     *
-     * @param other any other cell.
-     */
-    SignedKhalimskyCell( const SignedKhalimskyCell & other );
-
-    /**
-     * constructor from point.
-     *
-     * @param point any point.
-     * @param positive if cell has positive sign.
-     */
-    SignedKhalimskyCell( const Point & point, bool positive );
-
-    /**
-     * Copy constructor.
-     *
-     * @param other any other cell.
-     */
-    SignedKhalimskyCell & operator=( const SignedKhalimskyCell & other );
-
-    /**
-       Equality operator.
-       @param other any other cell.
-    */
-    bool operator==( const SignedKhalimskyCell & other ) const;
-
-    /**
-       Difference operator.
-       @param other any other cell.
-    */
-    bool operator!=( const SignedKhalimskyCell & other ) const;
-
-    /**
-       Inferior operator. (lexicographic order).
-       @param other any other cell.
-    */
-    bool operator<( const SignedKhalimskyCell & other ) const;
-
-    // --------------- CDrawableWithBoard2D realization -------------------
-  public:
-
-    /**
-     * Default drawing style object.
-     * @return the dyn. alloc. default style for this object.
-     */
-    //DrawableWithBoard2D* defaultStyle( std::string mode = "" ) const;
-
-    /**
-     * @return the style name used for drawing this object.
-     */
-    std::string className() const;
-
-  };
-
-  template < Dimension dim,
-             typename TInteger >
-  std::ostream &
-  operator<<( std::ostream & out,
-              const SignedKhalimskyCell< dim, TInteger > & object );
 
   /**
      @brief This class is useful for looping on all "interesting" coordinates of a
@@ -238,9 +69,10 @@ namespace DGtal
      }
      @endcode
   */
-  template < Dimension dim,
-             typename TInteger = DGtal::int32_t >
-  class CellDirectionIterator
+  template < DGtal::Dimension dim, 
+             typename TInteger = DGtal::int32_t,
+             typename TCode = DGtal::uint64_t>
+  class CodedCellDirectionIterator
   {
   public:
     typedef TInteger Integer;
@@ -253,13 +85,13 @@ namespace DGtal
      * Constructor from cell.
      * @param cell any unsigned cell
      */
-    CellDirectionIterator( Cell cell, bool open = true );
+    CodedCellDirectionIterator( Cell cell, bool open = true );
 
     /**
      * Constructor from signed cell.
      * @param scell any signed cell
      */
-    CellDirectionIterator( SCell scell, bool open = true );
+    CodedCellDirectionIterator( SCell scell, bool open = true );
 
     /**
      * @return the current direction.
@@ -269,7 +101,7 @@ namespace DGtal
     /**
      * Pre-increment. Go to next direction.
      */
-    CellDirectionIterator & operator++();
+    CodedCellDirectionIterator & operator++();
 
     /**
      * Fast comparison with unsigned integer (unused
@@ -288,13 +120,13 @@ namespace DGtal
      * Slow comparison with other iterator. Useful to check for end of loop.
      * @param other any direction iterator.
      */
-    bool operator!=( const CellDirectionIterator & other ) const;
+    bool operator!=( const CodedCellDirectionIterator & other ) const;
 
     /**
      * Slow comparison with other iterator.
      * @param other any direction iterator.
      */
-    bool operator==( const CellDirectionIterator & other ) const;
+    bool operator==( const CodedCellDirectionIterator & other ) const;
 
   private:
     /** the current direction. */
@@ -341,7 +173,7 @@ namespace DGtal
   {
     //Integer must be signed to characterize a ring.
     BOOST_CONCEPT_ASSERT(( CInteger<TInteger> ) );
-    BOOST_CONCEPT_ASSERT(( CUnsignedInteger<TCode> ) );
+    BOOST_CONCEPT_ASSERT(( CUnsignedNumber<TCode> ) );
 
   public:
     /// Self type.
@@ -362,6 +194,8 @@ namespace DGtal
      * within an instance of Code.
      */
     struct BitField {
+      /// Default constructor.
+      BitField() {}
       /**
        * Constructor provided for convenience. If your mask is like 0x00f0, the constructor
        * should be called with (0x0f00, 8, 4).
@@ -379,21 +213,103 @@ namespace DGtal
       Dimension shift;
       /// The number of consecutive bits of the field.
       Dimension nb_bits;
+
+      /**
+       * Given a cell code \a c, returns the part of the code
+       * corresponding to the given field.
+       * @param c any cell or signed cell code 
+       * @return the code \a c masked by the mask of \a bf.
+       */
+      Code select( Code c ) const
+      { return c & mask; }
+
+      /**
+       * Given a cell code \a c, returns the part of the code
+       * without the part corresponding to the given field.
+       * @param c any cell or signed cell code 
+       * @return the code \a c masked by the inverted mask of \a bf.
+       */
+      Code unselect( Code c ) const
+      { return c & inv_mask; }
+
+      /**
+       * Given a cell code \a c, modifies the code to remove
+       * the part corresponding to the given field.
+       * @param[in,out] c any cell or signed cell code 
+       */
+      void reset( Code& c ) const
+      { c &= inv_mask; }
+
+      /**
+       * Given a cell code \a c and a value \a v, modifies the
+       * code to set the given value in the given field.
+       * @param c any cell or signed cell code 
+       * @param v an integer value (within bounds).
+       * @return the code \a c updated.
+       */
+      Code codeWithValue( Code c, Integer v ) const
+      { return ( c & inv_mask ) | codeValue( v ); }
+
+      /**
+       * Given a cell code \a c and a coded value \a d
+       * returns the code with the given coded value in the given field.
+       */
+      Code codeWithCodedValue( Code c, Code d ) const
+      { return ( c & inv_mask ) | d; }
+
+      /**
+       * Given a cell code \a c, a field \a bf and a coded value [FCODE], 
+       * modifies the code to set the given coded value in the given field.
+       */
+      void changeCode( Code& c, Code d ) const
+      { c = ( c & inv_mask ) | d; }
+
+      /**
+       * Given a value \a v, returns the coded value.
+       */
+      Code codeValue( Integer v ) const
+      { return v << shift; }
+
+      /**
+       * Given a field \a bf and a cell code \a c, returns the value of this 
+       * field.
+       */
+      Integer valueOfCode( Code c ) const
+      { return ( c & mask ) >> shift; }
+
+      /**
+       * Given a bit index \a b in the field, returns the mask for
+       * checking the bit of this field.
+       */
+      Code bitSelector( Dimension b ) const
+      { return NumberTraits<Code>::ONE << ( b + shift ); }
+
+      /**
+       * Given a cell code \a c and a bit index \a b in the 
+       * field, returns true/false depending if this bit is set in the specified
+       * field of the code.
+       */
+      bool bitCheck( Code c, Dimension b ) const
+      { return c & bitSelector( b ); }
+
     };
     /// a Vector of BitField.
+    typedef std::vector<BitField> BitFields;
+
 
     // Cells
-    typedef std::vector<BitField> BitFields;
     /// type for common cells of cellular space.
     typedef Code Cell;
     /// type for common signed cells of cellular space.
     typedef Code SCell;
+    /// type for an array of codes
+    typedef std::vector<Code> Codes;
     /// type for signed d-1-cells of cellular space.
     typedef SCell Surfel;
     /// type for sign of signed cells
     typedef bool Sign;
     /// type for iterating over the directions of a cell.
-    typedef CellDirectionIterator< dim, Integer > DirIterator;
+    typedef CodedCellDirectionIterator< dim, Integer > DirIterator;
 
     //Points and Vectors
     typedef PointVector< dim, Integer > Point;
@@ -1625,7 +1541,7 @@ namespace DGtal
      * It is a LUT for computing incidence matrices.
      * To get the index in the array: m_permutation[ ( c1 << (n+1) ) + c2 ]
      */
-    std::vector<DGtal::int8> mySLowIncidenceMatrix;
+    std::vector<DGtal::int8_t> mySLowIncidenceMatrix;
 
     /**
      * Array of size (1<<(dim()+1)*dim(). For a given sign cell-type [c] and a
@@ -1635,6 +1551,8 @@ namespace DGtal
      */
     std::vector<bool> mySDirectOrientation;
 
+    /// Stores all the binomials (n,k) with n = dimension.
+    std::vector<Integer> myBinomials;
 
     // ------------------------- Vector attributes ------------------------------
     /**
@@ -1673,6 +1591,14 @@ namespace DGtal
     */
     void uAddCoFaces( Cells& cofaces, const Cell& c, Dimension axis ) const;
 
+    /// Internal methods to compute incidence LUT.
+    void computeIncidenceLUT();
+    /// Internal methods to compute permutation LUT.
+    void computePermutationLUT();
+    /// Internal methods to compute direct orientation LUT.
+    void computeDirectOrientationLUT();
+    /// Internal methods to compute binomials LUT.
+    void computeBinomials();
 
   }; // end of class CodedKhalimskySpaceND
 
@@ -1683,11 +1609,12 @@ namespace DGtal
    * @param object the object of class 'CodedKhalimskySpaceND' to write.
    * @return the output stream after the writing.
    */
-  template < Dimension dim,
-             typename TInteger >
+  template < DGtal::Dimension dim, 
+             typename TInteger,
+             typename TCode >
   std::ostream&
   operator<< ( std::ostream & out,
-               const CodedKhalimskySpaceND<dim, TInteger > & object );
+               const CodedKhalimskySpaceND<dim, TInteger, TCode> & object );
 
 } // namespace DGtal
 

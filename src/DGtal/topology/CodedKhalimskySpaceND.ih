@@ -29,6 +29,7 @@
 
 //////////////////////////////////////////////////////////////////////////////
 #include "DGtal/kernel/NumberTraits.h"
+#include "DGtal/base/Bits.h"
 //////////////////////////////////////////////////////////////////////////////
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -59,13 +60,13 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::NEG = false;
 
 
 ///////////////////////////////////////////////////////////////////////////////
-// CellDirectionIterator
+// CodedCellDirectionIterator
 ///////////////////////////////////////////////////////////////////////////////
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
-CellDirectionIterator( Cell cell, bool open )
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
+CodedCellDirectionIterator( Cell cell, bool open )
   : myDir( 0 ), myCell( cell ), myOpen( open )
 {
   find();
@@ -73,8 +74,8 @@ CellDirectionIterator( Cell cell, bool open )
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
-CellDirectionIterator( SCell scell, bool open )
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
+CodedCellDirectionIterator( SCell scell, bool open )
   : myDir( 0 ), myCell( scell.myCoordinates ), myOpen( open )
 {
   find();
@@ -83,7 +84,7 @@ CellDirectionIterator( SCell scell, bool open )
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 DGtal::Dimension 
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
 operator*() const
 {
   return myDir;
@@ -91,8 +92,8 @@ operator*() const
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-DGtal::CellDirectionIterator<dim, TInteger, TCode> & 
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode> & 
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
 operator++()
 {
   ++myDir;
@@ -103,7 +104,7 @@ operator++()
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 bool
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
 operator!=( const Integer ) const
 {
   return myDir < dim;
@@ -112,7 +113,7 @@ operator!=( const Integer ) const
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 bool
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
 end() const
 {
   return myDir >= dim;
@@ -121,8 +122,8 @@ end() const
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 bool
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
-operator!=( const CellDirectionIterator & other ) const
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
+operator!=( const CodedCellDirectionIterator & other ) const
 {
   return myDir != other.myDir;
 }
@@ -130,8 +131,8 @@ operator!=( const CellDirectionIterator & other ) const
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 bool
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
-operator==( const CellDirectionIterator & other ) const
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
+operator==( const CodedCellDirectionIterator & other ) const
 {
   return myDir == other.myDir;
 }
@@ -139,7 +140,7 @@ operator==( const CellDirectionIterator & other ) const
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 void
-DGtal::CellDirectionIterator<dim, TInteger, TCode>::
+DGtal::CodedCellDirectionIterator<dim, TInteger, TCode>::
 find()
 {
   if ( myOpen ) // loop on open coordinates
@@ -186,33 +187,25 @@ init( const Point & lower,
   myIsClosed = closed;
   myLower = lower;
   myUpper = upper;
-  mySizes = myUpper - myLower;
+  mySizes = Point::diagonal(1) + myUpper - myLower;
   
-  return computeLUTs();
-}
-//-----------------------------------------------------------------------------
-template < DGtal::Dimension dim, typename TInteger, typename TCode >
-inline
-bool 
-DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-computeLUTs()
-{
-  const Code zero   = 0;
-  const Code one    = 1;
-  Dimension shift   = 0;
-  myNbBits          = 0;
-  myNbCellTypes     = 1 << dimension;
-  myCodedMax        = 0;
-  myNbSpels         = one;
-  myBFCoords        = BitFields( dimension );
-  myCodedCoordMaxs  = Codes( dimension, zero );
-  myCodedCoordIncrs = Codes( dimension, zero );
+  const Code zero    = 0;
+  const Code one     = 1;
+  Dimension shift    = 0;
+  myNbBits           = 0;
+  myNbCellTypes      = 1 << dimension;
+  myCodedAllCoordMax = 0;
+  myNbSpels          = one;
+  myBFCoords         = BitFields( dimension );
+  myCodedCoordMaxs   = Codes( dimension, zero );
+  myCodedCoordIncrs  = Codes( dimension, zero );
   // Computing masks for coordinates.
   for ( Dimension i = 0; i < dimension; i++ )
     {
       // nb_bits : nb of bits used to define coordinate.
       myNbSpels               *= mySizes[ i ];
-      Dimension nb_bits        = 1 + Bits::mostSignificantBit( mySizes[ i ] - 1 );
+      Size size_axis           = myIsClosed ? mySizes[ i ] : mySizes[ i ] - 1;
+      Dimension nb_bits        = 1 + Bits::mostSignificantBit( size_axis );
       myBFCoords[ i ]          = BitField( ( ( one << nb_bits ) - one ) << shift, 
                                            shift, nb_bits );
       myCodedCoordMaxs[ i ]    = ( mySizes[ i ] - one ) << shift;
@@ -220,26 +213,27 @@ computeLUTs()
       myCodedCoordIncrs[ i ]   = one << shift;
       myNbBits                += nb_bits;
       shift                   += nb_bits;
+      trace.info() << "size[" << i << "]=" << size_axis << " bits=" << nb_bits << std::endl;
     }
-
+  // Storing shift for directions.
+  Dimension dirs_shift = shift;
   // Computing mask for all coords
   myBFAllCoords = BitField( ( one << shift ) - one, 0, shift );
   // Computing mask for directions 
   myBFAllDirs   = BitField( ( ( one << dimension ) - one ) << dirs_shift, 
                             dirs_shift, dimension );
   myBFDirs      = BitFields( dimension );
-  Dimension dirs_shift = shift;
   for ( Dimension i = 0; i < dimension; ++i, ++shift )
     {
-      myBFDirs[ i ] = BitField( one << shift, shift, 1 );
-      myNbBits                += 1;
-      shift                   += 1;
+      myBFDirs[ i ]  = BitField( one << shift, shift, 1 );
+      myNbBits      += 1;
+      shift         += 1;
     }
   // Computing mask for sign of SCell
   myBFSign           = BitField( one << shift, shift, 1 );
   /// Field to reach all directions and the sign in a coded SCell (no meaning for Cell).
   myBFAllDirsAndSign = BitField( ( ( one << (dimension+1) ) - one ) << dirs_shift, 
-                                 dirs_shift, dimension+1 );;
+                                 dirs_shift, dimension+1 );
   myNbBits          += 1;
   shift             += 1;
 
@@ -260,7 +254,7 @@ computeLUTs()
   computePermutationLUT();
 
   // Computing coordinates for each cell type.
-  myCodedCoordIncrs = Codes( myNbCellTypes );
+  myCodedCellTypeIncrs = Codes( myNbCellTypes );
   for ( Dimension i = 0; i < myNbCellTypes; ++i )
     {
       Code uid = 0;
@@ -271,6 +265,7 @@ computeLUTs()
     }
 
   // Computing coordinates of vertices for each cell type.
+  myCodedCoordsVtx = Codes( myNbCellTypes * myNbCellTypes );
   for ( Dimension i = 0; i < myNbCellTypes; ++i )
     {
       Dimension nb = 0;
@@ -284,19 +279,17 @@ computeLUTs()
 	      nb++;
 	    }
 	}
-      sort( myCodedCoordsVtx + ( i << dimension ),
-	    myCodedCoordsVtx + ( ( i << dimension ) + nb ) );
+      std::sort( myCodedCoordsVtx.begin() + ( i << dimension ),
+                 myCodedCoordsVtx.begin() + ( ( i << dimension ) + nb ) );
     }
 
   // Compute direct orientation LUT.
-  computeDirectOrientationLUT( n );
+  computeDirectOrientationLUT();
 
   // Compute binomials.
-  KnUtils::binomials( n, m_binomials );
-  
-  // Check number of bits allowed.
-  return ( m_nb_bits <= max_sid_nb_bits )
-    && ( m_nb_bits - 1 <= max_uid_nb_bits );
+  computeBinomials();
+
+  return true;
 }
 
 //-----------------------------------------------------------------------------
@@ -307,42 +300,35 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 computeDirectOrientationLUT()
 {
   // Fills direct orientations LUT.
+  mySDirectOrientation = std::vector<bool>( ( 1 << (dimension+1) ) * dimension );
   for ( Code i = 0; i < myNbCellTypes; ++i )
-    {
-      // make the cell with open directions i.
-      Code c = i << myBFDirs.shift;
-      
-      // For each direction.
-      for ( Dimension b = 0; b < n; ++b )
-	{
-	  Kn_sid inc_c = sincident( c, b, true );
-          Dimension offset = ( b << ( n + 1 ) ) + ( i << 1 );
-	  if ( decodeSign( inc_c ) == KnTypes::POS )
-	    {
-	      // TODO
-	      m_sid_direct_orientation[ offset ] = true;       // pos
-	      m_sid_direct_orientation[ offset + 1 ] = false;  // neg
-	    }
-	  else
-	    {
-	      m_sid_direct_orientation[ offset ] = false;      // pos
-	      m_sid_direct_orientation[ offset + 1 ] = true;   // neg
-	    }
-	}
-    }
-  return true;
+    for ( Dimension b = 0; b < dimension; ++b )
+      {
+        Dimension offset   = ( b << ( dimension + 1 ) ) + i;
+        Code inc_cell      = mySIncident2[ offset ];
+        Sign inc_cell_sign = inc_cell & myNbCellTypes;
+        mySDirectOrientation[ offset ]                 = inc_cell_sign;
+        mySDirectOrientation[ offset + myNbCellTypes ] = ! inc_cell_sign;
+        trace.info() << "Cell[" << i << ",-].inc2(" << b << ") = " << inc_cell<< std::endl;
+        trace.info() << "Cell[" << i << ",-].sDirect(" << b << ") = " 
+                     << mySDirectOrientation[ offset ]  << std::endl;
+        trace.info() << "Cell[" << i << ",+].sDirect(" << b << ") = " 
+                     << mySDirectOrientation[ offset + myNbCellTypes ] << std::endl;
+      }
 }
-
 
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Size
+void
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-size( DGtal::Dimension k ) const
+computeBinomials()
 {
-  ASSERT( k < dimension );
-  return myUpper[ k ] + NumberTraits<Integer>::ONE - myLower[ k ];
+  myBinomials = std::vector<Integer>( dimension + 1, 0 );
+  myBinomials[ 0 ] = 1;
+  for ( Dimension i = 1; i <= dimension; ++i )  
+    for ( Dimension j = 1; j <= dimension; ++j )  
+      myBinomials[ j ] += myBinomials[ j - 1 ];
 }
 
 //-----------------------------------------------------------------------------
@@ -392,17 +378,18 @@ computePermutationLUT()
   // Initialize permutation LUT.
   myPermutation          = std::vector<bool>( myNbCellTypes * dimension );
   // Set incidence matrix to 0.
-  mySLowIncidenceMatrix  = std::vector<DGtal::int8>( 4 * myNbCellTypes * myNbCellTypes, 0 );
+  mySLowIncidenceMatrix  = std::vector<DGtal::int8_t>( 4 * myNbCellTypes * myNbCellTypes, 0 );
   // Set size of topology incident vectors.
   mySIncident1           = Codes( 2 * myNbCellTypes * dimension );
+  mySIncident2           = Codes( 2 * myNbCellTypes * dimension );
   // Fills incidence LUTs and matrix.
   for ( Code i = 0; i < myNbCellTypes; ++i )
     {
       // First incident are low, second incident are up
-      bool pos_cell = true;
+      bool pos_cell = POS == false; // neg_cell have their sign = 0, pos_cell = 1
       bool up = false;
       bool sign = up ? pos_cell : ! pos_cell;
-      for ( DGtal::Dimension b = 0; b < dimension; ++i )
+      for ( DGtal::Dimension b = 0; b < dimension; ++b )
         {
           if ( i ^ ( one << b ) ) // cell is open along coordinate b.
             sign = ! sign;
@@ -410,10 +397,10 @@ computePermutationLUT()
 	  myPermutation[ unsigned_offset ] = sign;
 	  Dimension signed_offset   = ( b << (dimension+1) ) + i; // + ( i << 1 );
           Dimension j               = ( i ^ ( one << b ) );
-          mySIncident1[ signed_offset ] = j + ( sign ? 0 : set_sign );
-          mySIncident2[ signed_offset ] = j + ( sign ? set_sign : 0 );
-          mySIncident1[ signed_offset + nb_cell_types ] = j + ( sign ? set_sign : 0 );
-          mySIncident2[ signed_offset + nb_cell_types ] = j + ( sign ? 0 : set_sign );
+          mySIncident1[ signed_offset ] = j + ( sign ? set_sign : 0 );
+          mySIncident2[ signed_offset ] = j + ( sign ? 0 : set_sign );
+          mySIncident1[ signed_offset + myNbCellTypes ] = j + ( sign ? 0 : set_sign );
+          mySIncident2[ signed_offset + myNbCellTypes ] = j + ( sign ? set_sign : 0 );
 	  if ( i & ( one << b ) )
 	    {
               mySLowIncidenceMatrix[ (i << (dimension+1)) + j ]
@@ -427,6 +414,17 @@ computePermutationLUT()
 	    }
 	}
     }
+}
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger, typename TCode >
+inline
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Size
+DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
+size( DGtal::Dimension k ) const
+{
+  ASSERT( k < dimension );
+  return myUpper[ k ] + NumberTraits<Integer>::ONE - myLower[ k ];
 }
 
 //-----------------------------------------------------------------------------
@@ -1710,7 +1708,7 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 std::ostream&
 DGtal::operator<< ( std::ostream & out, 
-      const CodedKhalimskySpaceND<dim, TInteger, TCode> & object )
+                    const CodedKhalimskySpaceND<dim, TInteger, TCode> & object )
 {
   object.selfDisplay( out );
   return out;
