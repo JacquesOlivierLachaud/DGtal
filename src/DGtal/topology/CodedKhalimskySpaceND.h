@@ -233,13 +233,20 @@ namespace DGtal
       { return c & inv_mask; }
 
       /**
-       * Given a cell code \a c, modifies the code to remove
-       * the part corresponding to the given field.
-       * @param[in,out] c any cell or signed cell code 
+       * @param c any cell or signed cell code 
+       * @return the code \a c with all bits of the bit field set to 1.
        */
-      void reset( Code& c ) const
-      { c &= inv_mask; }
+      Code set( Code c ) const
+      { return c | mask; }
 
+      /**
+       * @param c any cell or signed cell code 
+       * @return the code \a c with all bits of the bit field set to 0.
+       */
+      Code reset( Code c ) const
+      { return c & inv_mask; }
+
+ 
       /**
        * Given a cell code \a c and a value \a v, modifies the
        * code to set the given value in the given field.
@@ -450,7 +457,7 @@ namespace DGtal
      * @param kp an integer point (Khalimsky coordinates of cell).
      * @return the unsigned cell.
      */
-    Cell uCell( const Point & kp ) const;
+    Cell uCell( Point kp ) const;
 
     /**
      * From the digital coordinates of a point in Zn and a cell type,
@@ -462,7 +469,7 @@ namespace DGtal
      * @return the cell having the topology of [c] and the given
      * digital coordinates [p].
      */
-    Cell uCell( const Point & p, const Cell & c ) const;
+    Cell uCell( Point p, Cell c ) const;
 
     /**
      * From the Khalimsky coordinates of a cell and a sign, builds the
@@ -472,7 +479,7 @@ namespace DGtal
      * @param sign the sign of the cell (either POS or NEG).
      * @return the unsigned cell.
      */
-    SCell sCell( const Point & kp, Sign sign = POS ) const;
+    SCell sCell( Point kp, Sign sign = POS ) const;
 
     /**
      * From the digital coordinates of a point in Zn and a signed cell
@@ -484,7 +491,7 @@ namespace DGtal
      * @return the cell having the topology and sign of [c] and the given
      * digital coordinates [p].
      */
-    SCell sCell( const Point & p, const SCell & c ) const;
+    SCell sCell( Point p, SCell c ) const;
 
     /**
      * From the digital coordinates of a point in Zn, creates the spel
@@ -1411,9 +1418,15 @@ namespace DGtal
     /// Uppermost digital point in the space
     Point myUpper;
     /// Lowest cell in the space (in Khalimsky Coordinates)
-    Cell myCellLower;
+    Point myCellLower;
     /// Uppermost cell in the space (in Khalimsky Coordinates)
-    Cell myCellUpper;
+    Point myCellUpper;
+    /// Lowest valid cell in the space (in Khalimsky Coordinates)
+    /// (greater than myCellLower if ! myIsClosed)
+    Point myValidCellLower;
+    /// Uppermost valid cell in the space (in Khalimsky Coordinates)
+    /// (smaller than myCellUpper if ! myIsClosed)
+    Point myValidCellUpper;
     /// If 'true' the space is closed (low dimensional cells on
     /// boundary), otherwise it is open (high dimensional cells on
     /// boundary).

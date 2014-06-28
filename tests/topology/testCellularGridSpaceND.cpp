@@ -30,6 +30,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 #include <cmath>
 #include <iostream>
+#include <iomanip>
 #include <boost/math/special_functions/binomial.hpp>
 #include "DGtal/base/Common.h"
 #include "DGtal/kernel/SpaceND.h"
@@ -497,10 +498,18 @@ testCodedKhalimskySpaceND()
 {
   typedef CodedKhalimskySpaceND<2, DGtal::int32_t, DGtal::uint64_t> KSpace;
   typedef KSpace::Point Point;
+  typedef KSpace::Cell  Cell;
+  typedef KSpace::SCell SCell;
   KSpace K;
   Point low( -2, -2 );
-  Point up( 2, 2 );
+  Point up( 10, 10 );
   bool ok = K.init( low, up, true );
+  SCell pixel = K.sCell( Point( 1, 1 ), true );
+  trace.info() << "pixel(0,0)  = 0x" << setbase(16) << pixel << std::endl;
+  SCell linelx = K.sCell( Point( 1, 0 ), true );
+  trace.info() << "linelx(0,0) = 0x" << setbase(16) << linelx << std::endl;
+  SCell linely = K.sCell( Point( 0, 1 ), true );
+  trace.info() << "linely(0,0) = 0x" << setbase(16) << linely << std::endl;
   return ok;
 }
 ///////////////////////////////////////////////////////////////////////////////

@@ -184,11 +184,14 @@ init( const Point & lower,
       bool closed )
 {
   if ( ! lower.isLower( upper ) ) return false;
-  myIsClosed = closed;
-  myLower = lower;
-  myUpper = upper;
-  mySizes = Point::diagonal(1) + myUpper - myLower;
-  
+  myIsClosed         = closed;
+  myLower            = lower;
+  myUpper            = upper;
+  mySizes            = Point::diagonal(1) + myUpper - myLower;
+  myCellLower        = 2 * myLower;
+  myCellUpper        = 2 * ( myUpper + Point::diagonal(1) );
+  myValidCellLower   = myIsClosed ? myCellLower : Point::diagonal(1) + myCellLower;
+  myValidCellUpper   = myIsClosed ? myCellUpper : Point::diagonal(1) + myCellUpper;
   const Code zero    = 0;
   const Code one     = 1;
   Dimension shift    = 0;
@@ -223,7 +226,7 @@ init( const Point & lower,
   myBFAllDirs   = BitField( ( ( one << dimension ) - one ) << dirs_shift, 
                             dirs_shift, dimension );
   myBFDirs      = BitFields( dimension );
-  for ( Dimension i = 0; i < dimension; ++i, ++shift )
+  for ( Dimension i = 0; i < dimension; ++i )
     {
       myBFDirs[ i ]  = BitField( one << shift, shift, 1 );
       myNbBits      += 1;
@@ -424,7 +427,7 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 size( DGtal::Dimension k ) const
 {
   ASSERT( k < dimension );
-  return myUpper[ k ] + NumberTraits<Integer>::ONE - myLower[ k ];
+  return mySizes[ k ];
 }
 
 //-----------------------------------------------------------------------------
@@ -470,6 +473,7 @@ const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 lowerCell() const
 {
+  ASSERT( false ); // todo
   return myCellLower;
 }
 //-----------------------------------------------------------------------------
@@ -479,6 +483,7 @@ const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 upperCell() const
 {
+  ASSERT( false ); // todo
   return myCellUpper;
 }
 //-----------------------------------------------------------------------------
@@ -496,42 +501,54 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-uCell( const Point & kp ) const
+uCell( Point kp ) const
 {
-  return Cell( kp );
+  ASSERT( myValidCellLower.inf( kp ) == myValidCellLower ); 
+  ASSERT( myValidCellUpper.sup( kp ) == myValidCellUpper ); 
+  kp -= myCellLower;
+  typename Point::ConstIterator it  = kp.begin();
+  Cell c = NumberTraits<Code>::ZERO;
+  for ( Dimension i = 0; i < dimension; ++i, ++it )
+    {
+      c = myBFCoords[ i ].codeWithValue( c, *it >> 1 );
+      if ( (*it) & 1 ) c |= myBFDirs[ i ].mask;
+    }
+  return c;
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-uCell( const Point & p, const Cell & c ) const
+uCell( Point p, Cell c ) const
 {
-  Cell nc( p );
-  for ( DGtal::Dimension i = 0; i < DIM; ++i )
-    nc.myCoordinates[ i ] += p[ i ] + ( c.myCoordinates[ i ] & 0x1 );
-  return nc;
+  ASSERT( myLower.inf( p ) == myLower );
+  ASSERT( myUpper.sup( p ) == myUpper );
+  p -= myLower;
+  typename Point::ConstIterator it  = p.begin();
+  for ( Dimension i = 0; i < dimension; ++i, ++it )
+    {
+      c = myBFCoords[ i ].codeWithValue( c, *it );
+    }
+  return c;
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-sCell( const Point & kp, Sign sign ) const
+sCell( Point kp, Sign sign ) const
 {
-  return SCell( kp, sign == POS );
+  return sign == POS ? ( uCell( kp ) | myBFSign.mask ) : uCell( kp );
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-sCell( const Point & p, const SCell & c ) const
+sCell( Point p, SCell c ) const
 {
-  SCell nc( p, c.myPositive );
-  for ( DGtal::Dimension i = 0; i < DIM; ++i )
-    nc.myCoordinates[ i ] += p[ i ] + ( c.myCoordinates[ i ] & 0x1 );
-  return nc;
+  return uCell( p, c ); // the sign is already in c.
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
