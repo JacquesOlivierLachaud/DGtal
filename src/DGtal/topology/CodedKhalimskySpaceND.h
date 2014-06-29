@@ -1306,7 +1306,7 @@ namespace DGtal
        @note The cell should have an incident cell in this
        direction/orientation.
     */
-    Cell uIncident( const Cell & c, Dimension k, bool up ) const;
+    Cell uIncident( Cell c, Dimension k, bool up ) const;
 
     /**
        @param c any signed cell.
@@ -1327,45 +1327,45 @@ namespace DGtal
        @note The cell should have an incident cell in this
        direction/orientation.
     */
-    SCell sIncident( const SCell & c, Dimension k, bool up ) const;
+    SCell sIncident( SCell c, Dimension k, bool up ) const;
 
     /**
        @param c any unsigned cell.
        @return the cells directly low incident to c in this space.
     */
-    Cells uLowerIncident( const Cell & c ) const;
+    Cells uLowerIncident( Cell c ) const;
 
     /**
        @param c any unsigned cell.
        @return the cells directly up incident to c in this space.
     */
-    Cells uUpperIncident( const Cell & c ) const;
+    Cells uUpperIncident( Cell c ) const;
 
     /**
        @param c any signed cell.
        @return the signed cells directly low incident to c in this space.
        @note it is the lower boundary of c expressed as a list of signed cells.
     */
-    SCells sLowerIncident( const SCell & c ) const;
+    SCells sLowerIncident( SCell c ) const;
 
     /**
        @param c any signed cell.
        @return the signed cells directly up incident to c in this space.
        @note it is the upper boundary of c expressed as a list of signed cells.
     */
-    SCells sUpperIncident( const SCell & c ) const;
+    SCells sUpperIncident( SCell c ) const;
 
     /**
        @param c any unsigned cell.
        @return the proper faces of [c] (chain of lower incidence).
     */
-    Cells uFaces( const Cell & c ) const;
+    Cells uFaces( Cell c ) const;
 
     /**
        @param c any unsigned cell.
        @return the proper cofaces of [c] (chain of upper incidence).
     */
-    Cells uCoFaces( const Cell & c ) const;
+    Cells uCoFaces( Cell c ) const;
 
     /**
        Return 'true' if the direct orientation of [p] along [k] is in
@@ -1383,7 +1383,7 @@ namespace DGtal
        @return the direct orientation of [p] along [k] (true is
        upward, false is backward).
     */
-    bool sDirect( const SCell & p, Dimension k ) const;
+    bool sDirect( SCell p, Dimension k ) const;
 
     /**
        @param p any signed cell.
@@ -1392,7 +1392,7 @@ namespace DGtal
        @return the direct incident cell of [p] along [k] (the incident
        cell along [k] whose sign is positive).
     */
-    SCell sDirectIncident( const SCell & p, Dimension k ) const;
+    SCell sDirectIncident( SCell p, Dimension k ) const;
 
     /**
        @param p any signed cell.
@@ -1401,7 +1401,7 @@ namespace DGtal
        @return the indirect incident cell of [p] along [k] (the incident
        cell along [k] whose sign is negative).
     */
-    SCell sIndirectIncident( const SCell & p, Dimension k ) const;
+    SCell sIndirectIncident( SCell p, Dimension k ) const;
 
 
     // ----------------------- Interface --------------------------------------
@@ -1577,9 +1577,10 @@ namespace DGtal
     std::vector<DGtal::int8_t> mySLowIncidenceMatrix;
 
     /**
-     * Array of size (1<<(dim()+1)*dim(). For a given sign cell-type [c] and a
-     * given direction [k], stores 'true' if the direct orientation means a
-     * positive coordinate displacement, 'false' otherwise. The direct 
+     * Array of size (1<<(dim()+1)*dim(). For a given sign cell-type
+     * [c] and a given direction [k], stores 'true' at index `(k <<
+     * (dim+1)) + c` if the direct orientation means a positive
+     * coordinate displacement, 'false' otherwise. The direct
      * orientation is the one where the 1-incident cell is positive.
      */
     std::vector<bool> mySDirectOrientation;
@@ -1617,12 +1618,12 @@ namespace DGtal
     /**
        Used by uFaces for computing incident faces.
     */
-    void uAddFaces( Cells& faces, const Cell& c, Dimension axis ) const;
+    void uAddFaces( Cells& faces, Cell c, Dimension axis ) const;
 
     /**
        Used by uCoFaces for computing incident cofaces.
     */
-    void uAddCoFaces( Cells& cofaces, const Cell& c, Dimension axis ) const;
+    void uAddCoFaces( Cells& cofaces, Cell c, Dimension axis ) const;
 
     /// Internal methods to compute incidence LUT.
     void computeIncidenceLUT();
