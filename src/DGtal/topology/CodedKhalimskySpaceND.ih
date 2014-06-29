@@ -1366,16 +1366,14 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-uNeighborhood( const Cell & c ) const
+uNeighborhood( Cell c ) const
 {
   Cells N;
   N.push_back( c );
   for ( DGtal::Dimension k = 0; k < dimension; ++k )
     {
-      if ( ! uIsMin( c, k ) )
-  N.push_back( uGetDecr( c, k ) );
-      if ( ! uIsMax( c, k ) )
-  N.push_back( uGetIncr( c, k ) );
+      if ( ! uIsMin( c, k ) ) N.push_back( uGetDecr( c, k ) );
+      if ( ! uIsMax( c, k ) ) N.push_back( uGetIncr( c, k ) );
     }
   return N;
 }
@@ -1384,16 +1382,14 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-sNeighborhood( const SCell & c ) const
+sNeighborhood( SCell c ) const
 {
   SCells N;
   N.push_back( c );
   for ( DGtal::Dimension k = 0; k < dimension; ++k )
     {
-      if ( ! sIsMin( c, k ) )
-  N.push_back( sGetDecr( c, k ) );
-      if ( ! sIsMax( c, k ) )
-  N.push_back( sGetIncr( c, k ) );
+      if ( ! sIsMin( c, k ) ) N.push_back( sGetDecr( c, k ) );
+      if ( ! sIsMax( c, k ) ) N.push_back( sGetIncr( c, k ) );
     }
   return N;
 }
@@ -1402,15 +1398,13 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cells 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-uProperNeighborhood( const Cell & c ) const
+uProperNeighborhood( Cell c ) const
 {
   Cells N;
   for ( DGtal::Dimension k = 0; k < dimension; ++k )
     {
-      if ( ! uIsMin( c, k ) )
-  N.push_back( uGetDecr( c, k ) );
-      if ( ! uIsMax( c, k ) )
-  N.push_back( uGetIncr( c, k ) );
+      if ( ! uIsMin( c, k ) ) N.push_back( uGetDecr( c, k ) );
+      if ( ! uIsMax( c, k ) ) N.push_back( uGetIncr( c, k ) );
     }
   return N;
 }
@@ -1419,15 +1413,13 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCells 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-sProperNeighborhood( const SCell & c ) const
+sProperNeighborhood( SCell c ) const
 {
   SCells N;
   for ( DGtal::Dimension k = 0; k < dimension; ++k )
     {
-      if ( ! sIsMin( c, k ) )
-  N.push_back( sGetDecr( c, k ) );
-      if ( ! sIsMax( c, k ) )
-  N.push_back( sGetIncr( c, k ) );
+      if ( ! sIsMin( c, k ) ) N.push_back( sGetDecr( c, k ) );
+      if ( ! sIsMax( c, k ) ) N.push_back( sGetIncr( c, k ) );
     }
   return N;
 }
@@ -1436,7 +1428,7 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-uAdjacent( const Cell & p, DGtal::Dimension k, bool up ) const
+uAdjacent( Cell p, DGtal::Dimension k, bool up ) const
 {
   return up ? uGetIncr( p, k ) : uGetDecr( p, k );
 }
@@ -1445,11 +1437,12 @@ template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell 
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
-sAdjacent( const SCell & p, DGtal::Dimension k, bool up ) const
+sAdjacent( SCell p, DGtal::Dimension k, bool up ) const
 {
   return up ? sGetIncr( p, k ) : sGetDecr( p, k );
 }
 
+//-----------------------------------------------------------------------------
 // ----------------------- Incidence services --------------------------
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >

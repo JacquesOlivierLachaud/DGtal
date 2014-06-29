@@ -1226,7 +1226,7 @@ namespace DGtal
        @param cell the unsigned cell of interest.
        @return the cells of the 1-neighborhood of [cell].
     */
-    Cells uNeighborhood( const Cell & cell ) const;
+    Cells uNeighborhood( Cell cell ) const;
 
     /**
        Computes the 1-neighborhood of the cell [c] and returns
@@ -1236,7 +1236,7 @@ namespace DGtal
        @param cell the signed cell of interest.
        @return the cells of the 1-neighborhood of [cell].
     */
-    SCells sNeighborhood( const SCell & cell ) const;
+    SCells sNeighborhood( SCell cell ) const;
 
     /**
        Computes the proper 1-neighborhood of the cell [c] and returns
@@ -1247,7 +1247,7 @@ namespace DGtal
        @param cell the unsigned cell of interest.
        @return the cells of the proper 1-neighborhood of [cell].
     */
-    Cells uProperNeighborhood( const Cell & cell ) const;
+    Cells uProperNeighborhood( Cell cell ) const;
 
     /**
        Computes the proper 1-neighborhood of the cell [c] and returns
@@ -1258,7 +1258,7 @@ namespace DGtal
        @param cell the signed cell of interest.
        @return the cells of the proper 1-neighborhood of [cell].
     */
-    SCells sProperNeighborhood( const SCell & cell ) const;
+    SCells sProperNeighborhood( SCell cell ) const;
 
     /**
        NB: you can go out of the space.
@@ -1272,7 +1272,7 @@ namespace DGtal
 
        @note It is an alias to 'up ? uGetIncr( p, k ) : uGetDecr( p, k )'.
     */
-    Cell uAdjacent( const Cell & p, Dimension k, bool up ) const;
+    Cell uAdjacent( Cell p, Dimension k, bool up ) const;
     /**
        NB: you can go out of the space.
        @param p any cell.
@@ -1285,7 +1285,7 @@ namespace DGtal
 
        @note It is an alias to 'up ? sGetIncr( p, k ) : sGetDecr( p, k )'.
     */
-    SCell sAdjacent( const SCell & p, Dimension k, bool up ) const;
+    SCell sAdjacent( SCell p, Dimension k, bool up ) const;
 
     // ----------------------- Incidence services --------------------------
   public:
