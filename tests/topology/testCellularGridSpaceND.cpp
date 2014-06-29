@@ -506,12 +506,25 @@ testCodedKhalimskySpaceND()
   bool ok = K.init( low, up, true );
   SCell pixel = K.sCell( Point( 1, 1 ), true );
   SCell same_pixel = K.sSpel( Point( 0, 0 ), true );
-  trace.info() << "pixel(0,0)  = 0x" << setbase(16) << pixel << std::endl;
-  trace.info() << "spixel(0,0) = 0x" << setbase(16) << same_pixel << std::endl;
+  // trace.info() << "pixel(0,0)  = 0x" << setbase(16) << pixel << std::endl;
+  trace.info() << "pixel(0,0)  = ";
+  K.printlnSCell( std::cout, pixel );
+  trace.info() << "spixel(0,0) = ";
+  K.printlnSCell( std::cout, same_pixel );
   SCell linelx = K.sCell( Point( 1, 0 ), true );
-  trace.info() << "linelx(0,0) = 0x" << setbase(16) << linelx << std::endl;
+  trace.info() << "linelx(0,0) = ";
+  K.printlnSCell( std::cout, linelx );
   SCell linely = K.sCell( Point( 0, 1 ), true );
-  trace.info() << "linely(0,0) = 0x" << setbase(16) << linely << std::endl;
+  trace.info() << "linely(0,0) = ";
+  K.printlnSCell( std::cout, linely );
+  trace.info() << "D^d_0( p )  = ";
+  K.printlnSCell( std::cout, K.sDirectIncident( pixel, 0 ) );
+  trace.info() << "D^d_1( p )  = ";
+  K.printlnSCell( std::cout, K.sDirectIncident( pixel, 1 ) );
+  trace.info() << "D^i_0( p )  = ";
+  K.printlnSCell( std::cout, K.sIndirectIncident( pixel, 0 ) );
+  trace.info() << "D^i_1( p )  = ";
+  K.printlnSCell( std::cout, K.sIndirectIncident( pixel, 1 ) );
   return ok;
 }
 ///////////////////////////////////////////////////////////////////////////////
