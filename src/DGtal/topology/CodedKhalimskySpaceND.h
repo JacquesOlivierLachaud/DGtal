@@ -21,7 +21,7 @@
  * @author Jacques-Olivier Lachaud (\c jacques-olivier.lachaud@univ-savoie.fr )
  * Laboratory of Mathematics (CNRS, UMR 5807), University of Savoie, France
  *
- * @date 2011/02/08
+ * @date 2014/06/27
  *
  * Header file for module CodedKhalimskySpaceND.cpp
  *
@@ -70,28 +70,24 @@ namespace DGtal
      @endcode
   */
   template < DGtal::Dimension dim, 
-             typename TInteger = DGtal::int32_t,
-             typename TCode = DGtal::uint64_t>
+             typename TInteger = DGtal::int32_t>
   class CodedCellDirectionIterator
   {
+    //Integer must be signed to characterize a ring.
+    BOOST_CONCEPT_ASSERT(( CInteger<TInteger> ) );
+
   public:
+    /// Self type.
+    typedef CodedCellDirectionIterator<dim, TInteger> Self;
+    /// Arithmetic ring induced by (+,-,*) and Integer numbers.
     typedef TInteger Integer;
-    // Cells
-    typedef KhalimskyCell< dim, Integer > Cell;
-    typedef SignedKhalimskyCell< dim, Integer > SCell;
 
   public:
     /**
-     * Constructor from cell.
+     * Constructor from dirs.
      * @param cell any unsigned cell
      */
-    CodedCellDirectionIterator( Cell cell, bool open = true );
-
-    /**
-     * Constructor from signed cell.
-     * @param scell any signed cell
-     */
-    CodedCellDirectionIterator( SCell scell, bool open = true );
+    CodedCellDirectionIterator( Integer dirs );
 
     /**
      * @return the current direction.
@@ -101,7 +97,7 @@ namespace DGtal
     /**
      * Pre-increment. Go to next direction.
      */
-    CodedCellDirectionIterator & operator++();
+    CodedCellDirectionIterator& operator++();
 
     /**
      * Fast comparison with unsigned integer (unused
@@ -129,13 +125,10 @@ namespace DGtal
     bool operator==( const CodedCellDirectionIterator & other ) const;
 
   private:
+    /** the directions to visit. */
+    const Integer myDirs;
     /** the current direction. */
     Dimension myDir;
-    /** the cell. */
-    Cell myCell;
-    /** If 'true', returns open coordinates, otherwise returns closed
-        coordinates. */
-    bool myOpen;
 
   private:
     /** Look for next valid coordinate. */
@@ -233,6 +226,15 @@ namespace DGtal
       { return c & inv_mask; }
 
       /**
+       * Given a cell code \a c, returns the part of the code
+       * with the part corresponding to the given field flipped.
+       * @param c any cell or signed cell code 
+       * @return the code \a c flipped by the  mask of \a bf.
+       */
+      Code flip( Code c ) const
+      { return c ^ mask; }
+
+      /**
        * @param c any cell or signed cell code 
        * @return the code \a c with all bits of the bit field set to 1.
        */
@@ -258,6 +260,15 @@ namespace DGtal
       { return ( c & inv_mask ) | codeValue( v ); }
 
       /**
+       * Given a cell code \a c and a value \a v, modifies the
+       * code to set the given value in the given field.
+       * @param[in,out] c any cell or signed cell code 
+       * @param v an integer value (within bounds).
+       */
+      void setValue( Code& c, Integer v ) const
+      { c &= inv_mask; c |= codeValue( v ); }
+
+      /**
        * Given a cell code \a c and a coded value \a d
        * returns the code with the given coded value in the given field.
        */
@@ -281,7 +292,7 @@ namespace DGtal
        * Given a field \a bf and a cell code \a c, returns the value of this 
        * field.
        */
-      Integer valueOfCode( Code c ) const
+      Integer value( Code c ) const
       { return ( c & mask ) >> shift; }
 
       /**
@@ -543,58 +554,58 @@ namespace DGtal
      * @param k any valid dimension.
      * @return its Khalimsky coordinate along [k].
      */
-    Integer uKCoord( const Cell & c, Dimension k ) const;
+    Integer uKCoord( Cell c, Dimension k ) const;
 
     /**
      * @param c any unsigned cell.
      * @param k any valid dimension.
      * @return its digital coordinate  along [k].
      */
-    Integer uCoord( const Cell & c, Dimension k ) const;
+    Integer uCoord( Cell c, Dimension k ) const;
 
     /**
      * @param c any unsigned cell.
      * @return its Khalimsky coordinates.
      */
-    Point uKCoords( const Cell & c ) const;
+    Point uKCoords( Cell c ) const;
 
     /**
      * @param c any unsigned cell.
      * @return its digital coordinates.
      */
-    Point uCoords( const Cell & c ) const;
+    Point uCoords( Cell c ) const;
 
     /**
      * @param c any signed cell.
      * @param k any valid dimension.
      * @return its Khalimsky coordinate along [k].
      */
-    Integer sKCoord( const SCell & c, Dimension k ) const;
+    Integer sKCoord( SCell c, Dimension k ) const;
 
     /**
      * @param c any signed cell.
      * @param k any valid dimension.
      * @return its digital coordinate  along [k].
      */
-    Integer sCoord( const SCell & c, Dimension k ) const;
+    Integer sCoord( SCell c, Dimension k ) const;
 
     /**
      * @param c any signed cell.
      * @return its Khalimsky coordinates.
      */
-    Point sKCoords( const SCell & c ) const;
+    Point sKCoords( SCell c ) const;
 
     /**
      * @param c any signed cell.
      * @return its digital coordinates.
      */
-    Point sCoords( const SCell & c ) const;
+    Point sCoords( SCell c ) const;
 
     /**
      * @param c any signed cell.
      * @return its sign.
      */
-    Sign sSign( const SCell & c ) const;
+    Sign sSign( SCell c ) const;
 
     // ----------------------- Write accessors to cells ------------------------
   public:
@@ -605,7 +616,7 @@ namespace DGtal
      * @param k any valid dimension.
      * @param i an integer coordinate within the space.
      */
-    void uSetKCoord( Cell & c, Dimension k, const Integer & i ) const;
+    void uSetKCoord( Cell & c, Dimension k, Integer i ) const;
 
     /**
      * Sets the [k]-th Khalimsky coordinate of [c] to [i].
@@ -613,7 +624,7 @@ namespace DGtal
      * @param k any valid dimension.
      * @param i an integer coordinate within the space.
      */
-    void sSetKCoord( SCell & c, Dimension k, const Integer & i ) const;
+    void sSetKCoord( SCell & c, Dimension k, Integer i ) const;
 
     /**
      * Sets the [k]-th digital coordinate of [c] to [i].
@@ -674,21 +685,21 @@ namespace DGtal
      * @param s a sign.
      * @return the signed version of the cell [p] with sign [s].
      */
-    SCell signs( const Cell & p, Sign s ) const;
+    SCell signs( Cell p, Sign s ) const;
 
     /**
      * Creates an unsigned cell from a signed one.
      * @param p any signed cell.
      * @return the unsigned version of the cell [p].
      */
-    Cell unsigns( const SCell & p ) const;
+    Cell unsigns( SCell p ) const;
 
     /**
      * Creates the signed cell with the inverse sign of [p].
      * @param p any signed cell.
      * @return the cell [p] with opposite sign.
      */
-    SCell sOpp( const SCell & p ) const;
+    SCell sOpp( SCell p ) const;
 
     // ------------------------- Cell topology services -----------------------
   public:
@@ -696,51 +707,51 @@ namespace DGtal
      * @param p any unsigned cell.
      * @return the topology word of [p].
      */
-    Integer uTopology( const Cell & p ) const;
+    Integer uTopology( Cell p ) const;
 
     /**
      * @param p any signed cell.
      * @return the topology word of [p].
      */
-    Integer sTopology( const SCell & p ) const;
+    Integer sTopology( SCell p ) const;
 
     /**
      * @param p any unsigned cell.
      * @return the dimension of the cell [p].
      */
-    Dimension uDim( const Cell & p ) const;
+    Dimension uDim( Cell p ) const;
 
     /**
      * @param p any signed cell.
      * @return the dimension of the cell [p].
      */
-    Dimension sDim( const SCell & p ) const;
+    Dimension sDim( SCell p ) const;
 
     /**
      * @param b any unsigned cell.
      * @return 'true' if [b] is a surfel (spans all but one coordinate).
      */
-    bool uIsSurfel( const Cell & b ) const;
+    bool uIsSurfel( Cell b ) const;
 
     /**
      * @param b any signed cell.
      * @return 'true' if [b] is a surfel (spans all but one coordinate).
      */
-    bool sIsSurfel( const SCell & b ) const;
+    bool sIsSurfel( SCell b ) const;
 
     /**
        @param p any cell.
        @param k any direction.
        @return 'true' if [p] is open along the direction [k].
     */
-    bool uIsOpen( const Cell & p, Dimension k ) const;
+    bool uIsOpen( Cell p, Dimension k ) const;
 
     /**
        @param p any signed cell.
        @param k any direction.
        @return 'true' if [p] is open along the direction [k].
     */
-    bool sIsOpen( const SCell & p, Dimension k ) const;
+    bool sIsOpen( SCell p, Dimension k ) const;
 
     // -------------------- Iterator services for cells ------------------------
   public:
@@ -765,7 +776,7 @@ namespace DGtal
        @return an iterator that points on the first coordinate spanned
        by the cell.
     */
-    DirIterator uDirs( const Cell & p ) const;
+    DirIterator uDirs( Cell p ) const;
 
     /**
        Given a signed cell [p], returns an iterator to iterate over
@@ -787,7 +798,7 @@ namespace DGtal
        @return an iterator that points on the first coordinate spanned
        by the cell.
     */
-    DirIterator sDirs( const SCell & p ) const;
+    DirIterator sDirs( SCell p ) const;
 
     /**
        Given an unsigned cell [p], returns an iterator to iterate over each
@@ -809,7 +820,7 @@ namespace DGtal
        @return an iterator that points on the first coordinate spanned
        by the cell.
     */
-    DirIterator uOrthDirs( const Cell & p ) const;
+    DirIterator uOrthDirs( Cell p ) const;
 
     /**
        Given a signed cell [p], returns an iterator to iterate over each
@@ -831,7 +842,7 @@ namespace DGtal
        @return an iterator that points on the first coordinate spanned
        by the cell.
     */
-    DirIterator sOrthDirs( const SCell & p ) const;
+    DirIterator sOrthDirs( SCell p ) const;
 
     /**
        Given an unsigned surfel [s], returns its orthogonal direction (ie,
@@ -840,7 +851,7 @@ namespace DGtal
        @param s an unsigned surfel
        @return the orthogonal direction of [s]
     */
-    Dimension uOrthDir( const Cell & s ) const;
+    Dimension uOrthDir( Cell s ) const;
 
     /**
        Given a signed surfel [s], returns its orthogonal direction (ie,
@@ -849,7 +860,7 @@ namespace DGtal
        @param s a signed surfel
        @return the orthogonal direction of [s]
     */
-    Dimension sOrthDir( const SCell & s ) const;
+    Dimension sOrthDir( SCell s ) const;
 
     // -------------------- Unsigned cell geometry services --------------------
   public:
@@ -857,12 +868,12 @@ namespace DGtal
     /**
        @return the first cell of the space with the same type as [p].
     */
-    Cell uFirst( const Cell & p ) const;
+    Cell uFirst( Cell p ) const;
 
     /**
        @return the last cell of the space with the same type as [p].
     */
-    Cell uLast( const Cell & p ) const;
+    Cell uLast( Cell p ) const;
 
     /**
        NB: you can go out of the space.
@@ -872,7 +883,7 @@ namespace DGtal
        @return the same element as [p] except for the incremented
        coordinate [k].
     */
-    Cell uGetIncr( const Cell & p, Dimension k ) const;
+    Cell uGetIncr( Cell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -882,7 +893,7 @@ namespace DGtal
        @return true if [p] cannot have its [k]-coordinate augmented
        without leaving the space.
     */
-    bool uIsMax( const Cell & p, Dimension k ) const;
+    bool uIsMax( Cell p, Dimension k ) const;
 
 
     /**
@@ -892,7 +903,7 @@ namespace DGtal
 
        @return true if [p] has its [k]-coordinate within the allowed bounds.
     */
-    bool uIsInside( const Cell & p, Dimension k ) const;
+    bool uIsInside( Cell p, Dimension k ) const;
 
 
     /**
@@ -903,7 +914,7 @@ namespace DGtal
        @return the cell similar to [p] but with the maximum allowed
        [k]-coordinate.
     */
-    Cell uGetMax( const Cell & p, Dimension k ) const;
+    Cell uGetMax( Cell p, Dimension k ) const;
 
     /**
        NB: you can go out of the space.
@@ -913,7 +924,7 @@ namespace DGtal
        @return the same element as [p] except for an decremented
        coordinate [k].
     */
-    Cell uGetDecr( const Cell & p, Dimension k ) const;
+    Cell uGetDecr( Cell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -923,7 +934,7 @@ namespace DGtal
        @return true if [p] cannot have its [k]-coordinate decreased
        without leaving the space.
     */
-    bool uIsMin( const Cell & p, Dimension k ) const;
+    bool uIsMin( Cell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -933,7 +944,7 @@ namespace DGtal
        @return the cell similar to [p] but with the minimum allowed
        [k]-coordinate.
     */
-    Cell uGetMin( const Cell & p, Dimension k ) const;
+    Cell uGetMin( Cell p, Dimension k ) const;
 
 
     /**
@@ -945,7 +956,7 @@ namespace DGtal
        @return the same element as [p] except for a coordinate [k]
        incremented with x.
     */
-    Cell uGetAdd( const Cell & p, Dimension k, const Integer & x ) const;
+    Cell uGetAdd( Cell p, Dimension k, Integer x ) const;
 
     /**
        NB: you can go out of the space.
@@ -956,7 +967,7 @@ namespace DGtal
        @return the same element as [p] except for a coordinate [k]
        decremented with x.
     */
-    Cell uGetSub( const Cell & p, Dimension k, const Integer & x ) const;
+    Cell uGetSub( Cell p, Dimension k, Integer x ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -964,7 +975,7 @@ namespace DGtal
        @param k the coordinate that is tested.
        @return the number of increment to do to reach the maximum value.
     */
-    Integer uDistanceToMax( const Cell & p, Dimension k ) const;
+    Integer uDistanceToMax( Cell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -974,7 +985,7 @@ namespace DGtal
        @return the number of decrement to do to reach the minimum
        value.
     */
-    Integer uDistanceToMin( const Cell & p, Dimension k ) const;
+    Integer uDistanceToMin( Cell p, Dimension k ) const;
 
     /**
        Add the vector [vec] to [p].
@@ -983,7 +994,7 @@ namespace DGtal
        @param vec any pointel.
        @return the unsigned code of the cell [p] translated by [coord].
     */
-    Cell uTranslation( const Cell & p, const Vector & vec ) const;
+    Cell uTranslation( Cell p, const Vector & vec ) const;
 
     /**
        Return the projection of [p] along the [k]th direction toward
@@ -994,7 +1005,7 @@ namespace DGtal
        @param k the concerned coordinate.
        @return the projection.
     */
-    Cell uProjection( const Cell & p, const Cell & bound, Dimension k ) const;
+    Cell uProjection( Cell p, Cell bound, Dimension k ) const;
 
     /**
        Projects [p] along the [k]th direction toward
@@ -1004,7 +1015,7 @@ namespace DGtal
        @param [in] bound the element acting as bound (same topology as p).
        @param [in] k the concerned coordinate.
     */
-    void uProject( Cell & p, const Cell & bound, Dimension k ) const;
+    void uProject( Cell& p, Cell bound, Dimension k ) const;
 
     /**
        Increment the cell [p] to its next position (as classically done in
@@ -1027,7 +1038,7 @@ namespace DGtal
        @return true if p is still within the bounds, false if the
        scanning is finished.
     */
-    bool uNext( Cell & p, const Cell & lower, const Cell & upper ) const;
+    bool uNext( Cell& p, Cell lower, Cell upper ) const;
 
     // -------------------- Signed cell geometry services --------------------
   public:
@@ -1418,19 +1429,23 @@ namespace DGtal
     /// Uppermost digital point in the space
     Point myUpper;
     /// Lowest cell in the space (in Khalimsky Coordinates)
-    Point myCellLower;
+    Point myLowerCell;
     /// Uppermost cell in the space (in Khalimsky Coordinates)
-    Point myCellUpper;
+    Point myUpperCell;
     /// Lowest valid cell in the space (in Khalimsky Coordinates)
-    /// (greater than myCellLower if ! myIsClosed)
-    Point myValidCellLower;
+    /// (greater than myLowerCell if ! myIsClosed)
+    Point myLowerValidCell;
     /// Uppermost valid cell in the space (in Khalimsky Coordinates)
-    /// (smaller than myCellUpper if ! myIsClosed)
-    Point myValidCellUpper;
+    /// (smaller than myUpperCell if ! myIsClosed)
+    Point myUpperValidCell;
     /// If 'true' the space is closed (low dimensional cells on
     /// boundary), otherwise it is open (high dimensional cells on
     /// boundary).
     bool myIsClosed;
+    /// The lowest code for cell
+    Code myLowerCellCode;
+    /// The uppermost code for cell
+    Code myUpperCellCode;
 
     /// Size per dimension. It is also one more than the maximum
     /// coordinate allowed.
@@ -1487,7 +1502,12 @@ namespace DGtal
     BitField myBFAllDirs;
     /// Field array to select one direction in a coded Cell or SCell.
     BitFields myBFDirs;
-
+    /// LUT direction code -> orthogonal direction, valid for d-1
+    /// cells. Invalid value is d.
+    std::vector<Dimension> myOrthDir;
+    /// LUT direction code -> tangent direction, valid for
+    /// 1-cells. Invalid value is d.
+    std::vector<Dimension> myTgtDir;
 
     // ------------------------- Incidence attributes ---------------------------
   private:

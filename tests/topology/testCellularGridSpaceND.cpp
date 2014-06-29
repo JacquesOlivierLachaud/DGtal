@@ -501,11 +501,13 @@ testCodedKhalimskySpaceND()
   typedef KSpace::Cell  Cell;
   typedef KSpace::SCell SCell;
   KSpace K;
-  Point low( -2, -2 );
+  Point low( -2, -3 );
   Point up( 10, 10 );
   bool ok = K.init( low, up, true );
   SCell pixel = K.sCell( Point( 1, 1 ), true );
+  SCell same_pixel = K.sSpel( Point( 0, 0 ), true );
   trace.info() << "pixel(0,0)  = 0x" << setbase(16) << pixel << std::endl;
+  trace.info() << "spixel(0,0) = 0x" << setbase(16) << same_pixel << std::endl;
   SCell linelx = K.sCell( Point( 1, 0 ), true );
   trace.info() << "linelx(0,0) = 0x" << setbase(16) << linelx << std::endl;
   SCell linely = K.sCell( Point( 0, 1 ), true );
