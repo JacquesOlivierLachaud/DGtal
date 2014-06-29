@@ -1046,12 +1046,12 @@ namespace DGtal
     /**
        @return the first cell of the space with the same type as [p].
     */
-    SCell sFirst( const SCell & p ) const;
+    SCell sFirst( SCell p ) const;
 
     /**
        @return the last cell of the space with the same type as [p].
     */
-    SCell sLast( const SCell & p ) const;
+    SCell sLast( SCell p ) const;
 
     /**
        NB: you can go out of the space.
@@ -1061,7 +1061,7 @@ namespace DGtal
        @return the same element as [p] except for the incremented
        coordinate [k].
     */
-    SCell sGetIncr( const SCell & p, Dimension k ) const;
+    SCell sGetIncr( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1071,7 +1071,7 @@ namespace DGtal
        @return true if [p] cannot have its [k]-coordinate augmented
        without leaving the space.
     */
-    bool sIsMax( const SCell & p, Dimension k ) const;
+    bool sIsMax( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1080,7 +1080,7 @@ namespace DGtal
 
        @return true if [p] has its [k]-coordinate within the allowed bounds.
     */
-    bool sIsInside( const SCell & p, Dimension k ) const;
+    bool sIsInside( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1090,7 +1090,7 @@ namespace DGtal
        @return the cell similar to [p] but with the maximum allowed
        [k]-coordinate.
     */
-    SCell sGetMax( const SCell & p, Dimension k ) const;
+    SCell sGetMax( SCell p, Dimension k ) const;
 
     /**
        NB: you can go out of the space.
@@ -1100,7 +1100,7 @@ namespace DGtal
        @return the same element as [p] except for an decremented
        coordinate [k].
     */
-    SCell sGetDecr( const SCell & p, Dimension k ) const;
+    SCell sGetDecr( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1110,7 +1110,7 @@ namespace DGtal
        @return true if [p] cannot have its [k]-coordinate decreased
        without leaving the space.
     */
-    bool sIsMin( const SCell & p, Dimension k ) const;
+    bool sIsMin( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1120,7 +1120,7 @@ namespace DGtal
        @return the cell similar to [p] but with the minimum allowed
        [k]-coordinate.
     */
-    SCell sGetMin( const SCell & p, Dimension k ) const;
+    SCell sGetMin( SCell p, Dimension k ) const;
 
     /**
        NB: you can go out of the space.
@@ -1131,7 +1131,7 @@ namespace DGtal
        @return the same element as [p] except for a coordinate [k]
        incremented with x.
     */
-    SCell sGetAdd( const SCell & p, Dimension k, const Integer & x ) const;
+    SCell sGetAdd( SCell p, Dimension k, Integer x ) const;
 
     /**
        NB: you can go out of the space.
@@ -1142,7 +1142,7 @@ namespace DGtal
        @return the same element as [p] except for a coordinate [k]
        decremented with x.
     */
-    SCell sGetSub( const SCell & p, Dimension k, const Integer & x ) const;
+    SCell sGetSub( SCell p, Dimension k, Integer x ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1150,7 +1150,7 @@ namespace DGtal
        @param k the coordinate that is tested.
        @return the number of increment to do to reach the maximum value.
     */
-    Integer sDistanceToMax( const SCell & p, Dimension k ) const;
+    Integer sDistanceToMax( SCell p, Dimension k ) const;
 
     /**
        Useful to check if you are going out of the space.
@@ -1160,7 +1160,7 @@ namespace DGtal
        @return the number of decrement to do to reach the minimum
        value.
     */
-    Integer sDistanceToMin( const SCell & p, Dimension k ) const;
+    Integer sDistanceToMin( SCell p, Dimension k ) const;
 
     /**
        Add the vector [vec] to [p].
@@ -1169,7 +1169,7 @@ namespace DGtal
        @param vec any pointel.
        @return the signed code of the cell [p] translated by [coord].
     */
-    SCell sTranslation( const SCell & p, const Vector & vec ) const;
+    SCell sTranslation( SCell p, const Vector & vec ) const;
 
     /**
        Return the projection of [p] along the [k]th direction toward
@@ -1180,7 +1180,7 @@ namespace DGtal
        @param k the concerned coordinate.
        @return the projection.
     */
-    SCell sProjection( const SCell & p, const SCell & bound, Dimension k ) const;
+    SCell sProjection( SCell p, SCell bound, Dimension k ) const;
 
     /**
        Projects [p] along the [k]th direction toward
@@ -1190,7 +1190,7 @@ namespace DGtal
        @param bound the element acting as bound (same topology as p).
        @param k the concerned coordinate.
     */
-    void sProject( SCell & p, const SCell & bound, Dimension k ) const;
+    void sProject( SCell & p, SCell bound, Dimension k ) const;
 
     /**
        Increment the cell [p] to its next position (as classically done in
@@ -1213,7 +1213,7 @@ namespace DGtal
        @return true if p is still within the bounds, false if the
        scanning is finished.
     */
-    bool sNext( SCell & p, const SCell & lower, const SCell & upper ) const;
+    bool sNext( SCell & p, SCell lower, SCell upper ) const;
 
     // ----------------------- Neighborhood services --------------------------
   public:
