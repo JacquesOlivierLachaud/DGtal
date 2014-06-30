@@ -379,7 +379,7 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 computePermutationLUT()
 {
   Code one               = 1;
-  Code set_sign          = myNbCellTypes; // strongest bi
+  Code set_sign          = myNbCellTypes; // strongest bit is sign
   // Initialize permutation LUT.
   myPermutation          = std::vector<bool>( myNbCellTypes * dimension );
   // Set incidence matrix to 0.
@@ -396,7 +396,7 @@ computePermutationLUT()
       bool sign = up ? pos_cell : ! pos_cell;
       for ( DGtal::Dimension b = 0; b < dimension; ++b )
         {
-          if ( i ^ ( one << b ) ) // cell is open along coordinate b.
+          if ( i & ( one << b ) ) // cell is open along coordinate b.
             sign = ! sign;
 	  Dimension unsigned_offset = ( b << dimension ) + i;
 	  myPermutation[ unsigned_offset ] = sign;
@@ -1452,8 +1452,8 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 uIncident( Cell c, DGtal::Dimension k, bool up ) const
 {
   ASSERT( k < dimension );
-  ASSERT( ( ! up ) || ( uKCoord( c, k ) < uKCoord( myUpperCell, k ) ) ); 
-  ASSERT( (   up ) || ( uKCoord( myLowerCell, k ) < uKCoord( c, k ) ) ); 
+  ASSERT( ( ! up ) || ( uKCoord( c, k ) < myUpperValidCell[ k ] ) ); 
+  ASSERT( (   up ) || ( myLowerValidCell[ k ] < uKCoord( c, k ) ) ); 
   myBFCoords[ k ].flip( c );
   if ( myBFCoords[ k ].bitCheck( c, 0 ) )
     { // c is now open
@@ -1474,18 +1474,20 @@ DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 sIncident( SCell c, DGtal::Dimension k, bool up ) const
 {
   ASSERT( k < dimension );
-  ASSERT( ( ! up ) || ( sKCoord( c, k ) < sKCoord( myUpperCell, k ) ) ); 
-  ASSERT( (   up ) || ( sKCoord( myLowerCell, k ) < sKCoord( c, k ) ) ); 
-  myBFCoords[ k ].flip( c );
-  if ( myBFCoords[ k ].bitCheck( c, 0 ) )
-    { // c is now open
-      if ( up ) return c;
-      else      return sGetDecr( c, k );
+  ASSERT( ( ! up ) || ( sKCoord( c, k ) < myUpperValidCell[ k ] ) ); 
+  ASSERT( (   up ) || ( myLowerValidCell[ k ] < sKCoord( c, k ) ) ); 
+  Dimension cell_type = myBFAllDirsAndSign.value( c ) + ( k << ( dimension + 1 ) );
+  if ( up ) 
+    {
+      myBFAllDirsAndSign.setValue( c, mySIncident2[ cell_type ] );
+      if ( sIsOpen( c, k ) ) return c;
+      else                   return sGetIncr( c, k );
     }
   else
-    { // c is now closed
-      if ( up ) return sGetIncr( c, k );
-      else      return c;
+    {
+      myBFAllDirsAndSign.setValue( c, mySIncident1[ cell_type ] );
+      if ( sIsOpen( c, k ) ) return sGetDecr( c, k );
+      else                   return c;
     }
 }
 //-----------------------------------------------------------------------------
@@ -1662,14 +1664,14 @@ sDirectIncident( SCell p, DGtal::Dimension k ) const
   if ( up ) 
     {
       myBFAllDirsAndSign.setValue( p, mySIncident2[ cell_type ] );
-      if ( myBFCoords[ k ].bitCheck( p, 0 ) ) return p;
-      else                                    return sGetIncr( p, k );
+      if ( sIsOpen( p, k ) ) return p;
+      else                   return sGetIncr( p, k );
     }
   else
     {
       myBFAllDirsAndSign.setValue( p, mySIncident1[ cell_type ] );
-      if ( myBFCoords[ k ].bitCheck( p, 0 ) ) return sGetDecr( p, k );
-      else                                    return p;
+      if ( sIsOpen( p, k ) ) return sGetDecr( p, k );
+      else                   return p;
     }
 }
 //-----------------------------------------------------------------------------
@@ -1686,15 +1688,15 @@ sIndirectIncident( SCell p, DGtal::Dimension k ) const
   ASSERT( (   up ) || ( myLowerValidCell[ k ] < sKCoord( p, k ) ) ); 
   if ( up ) 
     {
-      myBFAllDirsAndSign.setValue( p, mySIncident1[ cell_type ] );
-      if ( myBFCoords[ k ].bitCheck( p, 0 ) ) return p;
-      else                                    return sGetIncr( p, k );
+      myBFAllDirsAndSign.setValue( p, mySIncident2[ cell_type ] );
+      if ( sIsOpen( p, k ) ) return p;
+      else                   return sGetIncr( p, k );
     }
   else
     {
-      myBFAllDirsAndSign.setValue( p, mySIncident2[ cell_type ] );
-      if ( myBFCoords[ k ].bitCheck( p, 0 ) ) return sGetDecr( p, k );
-      else                                    return p;
+      myBFAllDirsAndSign.setValue( p, mySIncident1[ cell_type ] );
+      if ( sIsOpen( p, k ) ) return sGetDecr( p, k );
+      else                   return p;
     }
 }
 
@@ -1745,11 +1747,11 @@ printSCell( std::ostream & out, SCell c ) const
 {
   out << "(" << ( sSign( c ) ? '+' : '-' );
   for ( Dimension i = 0; i < dimension; ++i )
-    out << ( uIsOpen( c, i ) ? '1' : '0' );
+    out << ( sIsOpen( c, i ) ? '1' : '0' );
   out << "|";
   for ( Dimension i = 0; i < dimension; ++i )
     {
-      out << uCoord( c, i );
+      out << sCoord( c, i );
       if ( i != dimension - 1 ) out << ",";
     }
   out << ")";

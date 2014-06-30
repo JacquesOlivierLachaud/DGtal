@@ -493,13 +493,13 @@ bool testCellularGridSpaceNDCoFaces()
   return nb == nbok;
 }
 
+template <typename KSpace>
 bool
 testCodedKhalimskySpaceND()
 {
-  typedef CodedKhalimskySpaceND<2, DGtal::int32_t, DGtal::uint64_t> KSpace;
-  typedef KSpace::Point Point;
-  typedef KSpace::Cell  Cell;
-  typedef KSpace::SCell SCell;
+  typedef typename KSpace::Point Point;
+  typedef typename KSpace::Cell  Cell;
+  typedef typename KSpace::SCell SCell;
   KSpace K;
   Point low( -2, -3 );
   Point up( 10, 10 );
@@ -525,6 +525,22 @@ testCodedKhalimskySpaceND()
   K.printlnSCell( std::cout, K.sIndirectIncident( pixel, 0 ) );
   trace.info() << "D^i_1( p )  = ";
   K.printlnSCell( std::cout, K.sIndirectIncident( pixel, 1 ) );
+
+  SCell Dp0 = K.sIncident( pixel, 0, true );
+  SCell Dm0 = K.sIncident( pixel, 0, false );
+  SCell Dp1 = K.sIncident( pixel, 1, true );
+  SCell Dm1 = K.sIncident( pixel, 1, false );
+  SCell Dp1_Dp0 = K.sIncident( Dp0, 1, true );
+  SCell Dp0_Dp1 = K.sIncident( Dp1, 0, true );
+  trace.info() << "D^+_0( p )  = ";
+  K.printSCell( std::cout, Dp0 );
+  trace.info() << "D^+_1( p )  = ";
+  K.printlnSCell( std::cout, Dp1 );
+  trace.info() << "D^+_1 D^+_0( p )  = ";
+  K.printSCell( std::cout, Dp1_Dp0 );
+  trace.info() << " D^+_0 D^+_1( p )  = ";
+  K.printlnSCell( std::cout, Dp0_Dp1 );
+
   return ok;
 }
 ///////////////////////////////////////////////////////////////////////////////
@@ -541,6 +557,8 @@ int main( int argc, char** argv )
   typedef KhalimskySpaceND<2> K2;
   typedef KhalimskySpaceND<3> K3;
   typedef KhalimskySpaceND<4> K4;
+  typedef CodedKhalimskySpaceND<2, DGtal::int32_t, DGtal::uint64_t> CK2;
+
   BOOST_CONCEPT_ASSERT(( CCellularGridSpaceND< K2 > ));
   BOOST_CONCEPT_ASSERT(( CCellularGridSpaceND< K3 > ));
   BOOST_CONCEPT_ASSERT(( CCellularGridSpaceND< K4 > ));
@@ -560,7 +578,8 @@ int main( int argc, char** argv )
   //   && testCellularGridSpaceNDCoFaces<K3>()
   //   && testCellularGridSpaceNDCoFaces<K4>();
 
-  bool res = testCodedKhalimskySpaceND();
+  bool res = testCodedKhalimskySpaceND<CK2>()
+    &&  testCodedKhalimskySpaceND<K2>();
   
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   trace.endBlock();

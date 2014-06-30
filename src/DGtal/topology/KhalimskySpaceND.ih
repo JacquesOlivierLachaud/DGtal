@@ -1695,6 +1695,64 @@ selfDisplay ( std::ostream & out ) const
 {
   out << "[KhalimskySpaceND]";
 }
+
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger>
+inline
+void
+DGtal::KhalimskySpaceND< dim, TInteger>::
+printCell( std::ostream & out, Cell c ) const
+{
+  out << "(";
+  for ( Dimension i = 0; i < dimension; ++i )
+    out << ( uIsOpen( c, i ) ? '1' : '0' );
+  out << "|";
+  for ( Dimension i = 0; i < dimension; ++i )
+    {
+      out << uCoord( c, i );
+      if ( i != dimension - 1 ) out << ",";
+    }
+  out << ")";
+} 
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger>
+inline
+void
+DGtal::KhalimskySpaceND< dim, TInteger>::
+printlnCell( std::ostream & out, Cell c ) const
+{
+  printCell( out, c );
+  out << std::endl;
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger>
+inline
+void
+DGtal::KhalimskySpaceND< dim, TInteger>::
+printSCell( std::ostream & out, SCell c ) const
+{
+  out << "(" << ( sSign( c ) ? '+' : '-' );
+  for ( Dimension i = 0; i < dimension; ++i )
+    out << ( sIsOpen( c, i ) ? '1' : '0' );
+  out << "|";
+  for ( Dimension i = 0; i < dimension; ++i )
+    {
+      out << sCoord( c, i );
+      if ( i != dimension - 1 ) out << ",";
+    }
+  out << ")";
+}
+//-----------------------------------------------------------------------------
+template < DGtal::Dimension dim, typename TInteger>
+inline
+void
+DGtal::KhalimskySpaceND< dim, TInteger>::
+printlnSCell( std::ostream & out, SCell c ) const
+{
+  printSCell( out, c );
+  out << std::endl;
+}
+
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger>
 inline

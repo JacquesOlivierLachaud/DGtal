@@ -1443,6 +1443,34 @@ namespace DGtal
     void selfDisplay ( std::ostream & out ) const;
 
     /**
+     * Displays a cell in a readable format.
+     * @param[in,out] out the output stream where the object is written.
+     * @param c the cell to display.
+     */
+    void printCell( std::ostream & out, Cell c ) const;
+
+    /**
+     * Displays a signed cell in a readable format.
+     * @param[in,out] out the output stream where the object is written.
+     * @param c the signed cell to display.
+     */
+    void printSCell( std::ostream & out, SCell c ) const;
+
+    /**
+     * Displays a cell in a readable format and outputs endl.
+     * @param[in,out] out the output stream where the object is written.
+     * @param c the cell to display.
+     */
+    void printlnCell( std::ostream & out, Cell c ) const;
+
+    /**
+     * Displays a signed cell in a readable format  and outputs endl.
+     * @param[in,out] out the output stream where the object is written.
+     * @param c the signed cell to display.
+     */
+    void printlnSCell( std::ostream & out, SCell c ) const;
+
+    /**
      * Checks the validity/consistency of the object.
      * @return 'true' if the object is valid, 'false' otherwise.
      */
