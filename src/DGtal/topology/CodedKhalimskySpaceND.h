@@ -231,21 +231,28 @@ namespace DGtal
        * @param c any cell or signed cell code 
        * @return the code \a c flipped by the  mask of \a bf.
        */
-      Code flip( Code c ) const
+      Code inverse( Code c ) const
       { return c ^ mask; }
+
+      /**
+       * Given a cell code \a c, flips the part corresponding to this field.
+       * @param[in,out] c any cell or signed cell code 
+       */
+      void flips( Code& c ) const
+      { c ^= mask; }
 
       /**
        * @param c any cell or signed cell code 
        * @return the code \a c with all bits of the bit field set to 1.
        */
-      Code set( Code c ) const
+      Code one( Code c ) const
       { return c | mask; }
 
       /**
        * @param c any cell or signed cell code 
        * @return the code \a c with all bits of the bit field set to 0.
        */
-      Code reset( Code c ) const
+      Code zero( Code c ) const
       { return c & inv_mask; }
 
  

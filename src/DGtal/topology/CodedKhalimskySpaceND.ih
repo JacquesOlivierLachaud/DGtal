@@ -734,7 +734,7 @@ typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::SCell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 sOpp( SCell p ) const
 {
-  return myBFSign.flip( p );
+  return myBFSign.inverse( p );
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
@@ -1470,8 +1470,8 @@ uIncident( Cell c, DGtal::Dimension k, bool up ) const
   ASSERT( k < dimension );
   ASSERT( ( ! up ) || ( uKCoord( c, k ) < myUpperValidCell[ k ] ) ); 
   ASSERT( (   up ) || ( myLowerValidCell[ k ] < uKCoord( c, k ) ) ); 
-  myBFCoords[ k ].flip( c );
-  if ( myBFCoords[ k ].bitCheck( c, 0 ) )
+  myBFDirs[ k ].flips( c );
+  if ( myBFDirs[ k ].bitCheck( c, 0 ) )
     { // c is now open
       if ( up ) return c;
       else      return uGetDecr( c, k );
@@ -1520,9 +1520,9 @@ uLowerIncident( Cell c ) const
       if ( dirs & 1 ) 
         {
           Integer x = uKCoord( c, k );
-          if ( uKCoord( myLowerValidCell, k ) < x )
+          if ( myLowerValidCell[ k ] < x )
             N.push_back( uIncident( c, k, false ) );
-          if ( x < uKCoord( myUpperValidCell, k ) )
+          if ( x < myUpperValidCell[ k ] )
             N.push_back( uIncident( c, k, true ) );
         }
     }
@@ -1542,9 +1542,9 @@ uUpperIncident( Cell c ) const
       if ( dirs & 1 ) 
         {
           Integer x = uKCoord( c, k );
-          if ( uKCoord( myLowerValidCell, k ) < x )
+          if ( myLowerValidCell[ k ] < x )
             N.push_back( uIncident( c, k, false ) );
-          if ( x < uKCoord( myUpperValidCell, k ) )
+          if ( x < myUpperValidCell[ k ] )
             N.push_back( uIncident( c, k, true ) );
         }
     }
@@ -1564,9 +1564,9 @@ sLowerIncident( SCell c ) const
       if ( dirs & 1 ) 
         {
           Integer x = sKCoord( c, k );
-          if ( sKCoord( myLowerValidCell, k ) < x )
+          if ( myLowerValidCell[ k ] < x )
             N.push_back( sIncident( c, k, false ) );
-          if ( x < sKCoord( myUpperValidCell, k ) )
+          if ( x < myUpperValidCell[ k ] )
             N.push_back( sIncident( c, k, true ) );
         }
     }
@@ -1586,9 +1586,9 @@ sUpperIncident( SCell c ) const
       if ( dirs & 1 ) 
         {
           Integer x = sKCoord( c, k );
-          if ( sKCoord( myLowerValidCell, k ) < x )
+          if ( myLowerValidCell[ k ] < x )
             N.push_back( sIncident( c, k, false ) );
-          if ( x < sKCoord( myUpperValidCell, k ) )
+          if ( x < myUpperValidCell[ k ] )
             N.push_back( sIncident( c, k, true ) );
         }
     }
