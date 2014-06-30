@@ -1470,10 +1470,10 @@ namespace DGtal
     /// boundary), otherwise it is open (high dimensional cells on
     /// boundary).
     bool myIsClosed;
-    /// The lowest code for cell
-    Code myLowerCellCode;
-    /// The uppermost code for cell
-    Code myUpperCellCode;
+    /// The lowest codes for cell (array of size 1 << dimension)
+    Codes myLowerCellCodes;
+    /// The uppermost codes for cell (array of size 1 << dimension)
+    Codes myUpperCellCodes;
 
     /// Size per dimension. It is also one more than the maximum
     /// coordinate allowed.
