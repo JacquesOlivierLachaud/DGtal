@@ -25,6 +25,8 @@
 #include "DGtal/images/imagesSetsUtils/SetFromImage.h"
 #include "DGtal/shapes/Shapes.h"
 #include "DGtal/helpers/StdDefs.h"
+#include "DGtal/topology/KhalimskySpaceND.h"
+#include "DGtal/topology/CodedKhalimskySpaceND.h"
 #include "DGtal/topology/helpers/Surfaces.h"
 //! [volTrackBoundary-basicIncludes]
 
@@ -32,7 +34,6 @@
 
 using namespace std;
 using namespace DGtal;
-using namespace Z3i;
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -53,6 +54,14 @@ int main( int argc, char** argv )
   std::string inputFilename = argv[ 1 ];
   unsigned int minThreshold = atoi( argv[ 2 ] );
   unsigned int maxThreshold = atoi( argv[ 3 ] );
+
+  typedef SpaceND< 3, int32_t >                         Space;
+  typedef HyperRectDomain< Space >                      Domain;
+  typedef DigitalSetBySTLSet<Domain>                    DigitalSet;
+  typedef CodedKhalimskySpaceND< 3, int32_t, uint64_t > KSpace;
+  typedef KSpace::SCell                                 SCell;
+  typedef KSpace::SCellSet                              SCellSet;
+  typedef SurfelAdjacency<KSpace::dimension>            MySurfelAdjacency;
 
   //! [volTrackBoundary-readVol]
   trace.beginBlock( "Reading vol file into an image." );
@@ -79,13 +88,12 @@ int main( int argc, char** argv )
   //! [volTrackBoundary-KSpace]
 
   //! [volTrackBoundary-SurfelAdjacency]
-  typedef SurfelAdjacency<KSpace::dimension> MySurfelAdjacency;
   MySurfelAdjacency surfAdj( true ); // interior in all directions.
   //! [volTrackBoundary-SurfelAdjacency]
 
   //! [volTrackBoundary-ExtractingSurface]
   trace.beginBlock( "Extracting boundary by tracking from an initial bel." );
-  KSpace::SCellSet boundary;
+  SCellSet boundary;
   SCell bel = Surfaces<KSpace>::findABel( ks, set3d, 100000 );
   Surfaces<KSpace>::trackBoundary( boundary, ks, 
                                    surfAdj,
@@ -95,14 +103,22 @@ int main( int argc, char** argv )
 
   //! [volTrackBoundary-DisplayingSurface]
   trace.beginBlock( "Displaying surface in Viewer3D." );
+  typedef KhalimskySpaceND< 3, int32_t > DisplayKSpace;
+  typedef SignedKhalimskyCell< 3, int32_t > DisplaySCell;
+
   QApplication application(argc,argv);
-  Viewer3D<> viewer;
+  DisplayKSpace dks;
+  space_ok = dks.init( image.domain().lowerBound(), image.domain().upperBound(), true );
+  Viewer3D<> viewer( dks );
   viewer.show(); 
   viewer << CustomColors3D(Color(250, 0, 0 ), Color( 128, 128, 128 ) );
   unsigned long nbSurfels = 0;
-  for ( KSpace::SCellSet::const_iterator it = boundary.begin(),
+  for ( SCellSet::const_iterator it = boundary.begin(),
           it_end = boundary.end(); it != it_end; ++it, ++nbSurfels )
-    viewer << *it;
+    {
+      DisplaySCell scell = dks.sCell( ks.sKCoords( *it ), ks.sSign( *it ) );
+      viewer << scell;
+    }
   viewer << Viewer3D<>::updateDisplay;
   trace.info() << "nb surfels = " << nbSurfels << std::endl;
   trace.endBlock();
