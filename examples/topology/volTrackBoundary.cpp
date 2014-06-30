@@ -22,7 +22,7 @@
 #include "DGtal/io/DrawWithDisplay3DModifier.h"
 #include "DGtal/io/Color.h"
 #include "DGtal/images/ImageSelector.h"
-#include "DGtal/images/imagesSetsUtils/SetFromImage.h"
+#include "DGtal/images/imagesSetsUtils/IntervalForegroundPredicate.h"
 #include "DGtal/shapes/Shapes.h"
 #include "DGtal/helpers/StdDefs.h"
 #include "DGtal/topology/KhalimskySpaceND.h"
@@ -55,6 +55,7 @@ int main( int argc, char** argv )
   unsigned int minThreshold = atoi( argv[ 2 ] );
   unsigned int maxThreshold = atoi( argv[ 3 ] );
 
+  //! [volTrackBoundary-typedefs]
   typedef SpaceND< 3, int32_t >                         Space;
   typedef HyperRectDomain< Space >                      Domain;
   typedef DigitalSetBySTLSet<Domain>                    DigitalSet;
@@ -62,14 +63,16 @@ int main( int argc, char** argv )
   typedef KSpace::SCell                                 SCell;
   typedef KSpace::SCellSet                              SCellSet;
   typedef SurfelAdjacency<KSpace::dimension>            MySurfelAdjacency;
+  typedef KhalimskySpaceND< 3, int32_t >                DisplayKSpace;  // used for display.
+  typedef SignedKhalimskyCell< 3, int32_t >             DisplaySCell;
+  //! [volTrackBoundary-typedefs]
 
   //! [volTrackBoundary-readVol]
   trace.beginBlock( "Reading vol file into an image." );
   typedef ImageSelector < Domain, int>::Type Image;
   Image image = VolReader<Image>::importVol(inputFilename);
-  DigitalSet set3d (image.domain());
-  SetFromImage<DigitalSet>::append<Image>(set3d, image, 
-                                          minThreshold, maxThreshold);
+  typedef IntervalForegroundPredicate<Image> ThresholdedImage;
+  ThresholdedImage thresholdedImage( image, minThreshold, maxThreshold );
   trace.endBlock();
   //! [volTrackBoundary-readVol]
   
@@ -94,18 +97,15 @@ int main( int argc, char** argv )
   //! [volTrackBoundary-ExtractingSurface]
   trace.beginBlock( "Extracting boundary by tracking from an initial bel." );
   SCellSet boundary;
-  SCell bel = Surfaces<KSpace>::findABel( ks, set3d, 100000 );
+  SCell bel = Surfaces<KSpace>::findABel( ks, thresholdedImage, 100000 );
   Surfaces<KSpace>::trackBoundary( boundary, ks, 
                                    surfAdj,
-                                   set3d, bel );
+                                   thresholdedImage, bel );
   trace.endBlock();
   //! [volTrackBoundary-ExtractingSurface]
 
   //! [volTrackBoundary-DisplayingSurface]
   trace.beginBlock( "Displaying surface in Viewer3D." );
-  typedef KhalimskySpaceND< 3, int32_t > DisplayKSpace;  // used for display.
-  typedef SignedKhalimskyCell< 3, int32_t > DisplaySCell;
-
   QApplication application(argc,argv);
   DisplayKSpace dks;
   space_ok = dks.init( image.domain().lowerBound(), image.domain().upperBound(), true );
