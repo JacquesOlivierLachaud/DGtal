@@ -69,7 +69,7 @@ DGtal::CodedCellDirectionIterator<dim, TInteger>::
 CodedCellDirectionIterator( Integer dirs )
   : myDirs( dirs ), myDir( 0 )
 {
-  find();
+  if ( myDirs ) find();
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger>
@@ -99,7 +99,7 @@ bool
 DGtal::CodedCellDirectionIterator<dim, TInteger>::
 operator!=( const Integer ) const
 {
-  return myDir < dim;
+  return myDirs != 0;
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger >
@@ -108,7 +108,7 @@ bool
 DGtal::CodedCellDirectionIterator<dim, TInteger>::
 end() const
 {
-  return myDir >= dim;
+  return myDirs == 0;
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger >
@@ -135,6 +135,7 @@ void
 DGtal::CodedCellDirectionIterator<dim, TInteger>::
 find()
 {
+  ASSERT( ! end() );
   while ( ( myDirs & 1 ) == 0 )
     {
       myDirs >>= 1;
@@ -205,7 +206,6 @@ init( const Point & lower,
       myCodedCoordIncrs[ i ]   = one << shift;
       myNbBits                += nb_bits;
       shift                   += nb_bits;
-      trace.info() << "size[" << i << "]=" << size_axis << " bits=" << nb_bits << std::endl;
     }
   // Storing shift for directions.
   Dimension dirs_shift = shift;
@@ -976,7 +976,7 @@ DGtal::Dimension
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 uOrthDir( Cell s ) const
 {
-  Dimension k = myOrthDir[ myBFDirs.value( s ) ];
+  Dimension k = myOrthDir[ uTopology( s ) ];
   ASSERT( k < dimension );
   return k;
 }
@@ -987,7 +987,7 @@ DGtal::Dimension
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 sOrthDir( SCell s ) const
 {
-  Dimension k = myOrthDir[ myBFDirs.value( s ) ];
+  Dimension k = myOrthDir[ sTopology( s ) ];
   ASSERT( k < dimension );
   return k;
 }
