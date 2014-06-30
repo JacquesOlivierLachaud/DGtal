@@ -103,7 +103,7 @@ int main( int argc, char** argv )
 
   //! [volTrackBoundary-DisplayingSurface]
   trace.beginBlock( "Displaying surface in Viewer3D." );
-  typedef KhalimskySpaceND< 3, int32_t > DisplayKSpace;
+  typedef KhalimskySpaceND< 3, int32_t > DisplayKSpace;  // used for display.
   typedef SignedKhalimskyCell< 3, int32_t > DisplaySCell;
 
   QApplication application(argc,argv);
@@ -111,12 +111,14 @@ int main( int argc, char** argv )
   space_ok = dks.init( image.domain().lowerBound(), image.domain().upperBound(), true );
   Viewer3D<> viewer( dks );
   viewer.show(); 
-  viewer << CustomColors3D(Color(250, 0, 0 ), Color( 128, 128, 128 ) );
+  DisplaySCell scell;
+  viewer << SetMode3D( scell.className(), "Basic" );
+  viewer << CustomColors3D(Color(250, 0, 0 ), Color( 220, 200, 255 ) );
   unsigned long nbSurfels = 0;
   for ( SCellSet::const_iterator it = boundary.begin(),
           it_end = boundary.end(); it != it_end; ++it, ++nbSurfels )
     {
-      DisplaySCell scell = dks.sCell( ks.sKCoords( *it ), ks.sSign( *it ) );
+      scell = dks.sCell( ks.sKCoords( *it ), ks.sSign( *it ) );
       viewer << scell;
     }
   viewer << Viewer3D<>::updateDisplay;

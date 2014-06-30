@@ -293,7 +293,7 @@ namespace DGtal
        * Given a value \a v, returns the coded value.
        */
       Code codeValue( Integer v ) const
-      { return v << shift; }
+      { return ((Code)v) << shift; }
 
       /**
        * Given a field \a bf and a cell code \a c, returns the value of this 

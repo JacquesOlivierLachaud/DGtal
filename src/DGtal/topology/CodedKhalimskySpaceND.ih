@@ -178,8 +178,8 @@ init( const Point & lower,
   myLower            = lower;
   myUpper            = upper;
   mySizes            = Point::diagonal(1) + myUpper - myLower;
-  myLowerCell        = 2 * myLower;
-  myUpperCell        = 2 * ( myUpper + Point::diagonal(1) );
+  myLowerCell        = ((Integer)2) * myLower;
+  myUpperCell        = ((Integer)2) * ( myUpper + Point::diagonal(1) );
   myLowerValidCell   = myIsClosed ? myLowerCell : Point::diagonal(1) + myLowerCell;
   myUpperValidCell   = myIsClosed ? myUpperCell : Point::diagonal(1) + myUpperCell;
   const Code zero    = 0;
