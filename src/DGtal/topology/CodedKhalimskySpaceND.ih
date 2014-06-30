@@ -481,7 +481,7 @@ upperBound() const
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 lowerCell() const
 {
@@ -490,7 +490,7 @@ lowerCell() const
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
 inline
-const typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell &
+typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 upperCell() const
 {

@@ -454,11 +454,11 @@ namespace DGtal
     /**
        @return the lower bound for cells in this space.
     */
-    const Cell & lowerCell() const;
+    Cell lowerCell() const;
     /**
        @return the upper bound for cells in this space.
     */
-    const Cell & upperCell() const;
+    Cell upperCell() const;
 
     /**
        @return 'true' iff the space is closed.
