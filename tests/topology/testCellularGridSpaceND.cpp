@@ -419,10 +419,11 @@ bool testFindABel()
   Surfaces<KSpace>::findABel( K, shape_set , p000 , p101 );
   SCell s010 = Surfaces<KSpace>::findABel( K, shape_set , p000 , p010 );
   SCell s001 = Surfaces<KSpace>::findABel( K, shape_set , p000 , p001 );
-
+  SCell exp_s010 = K.sCell( Point(1,2,1), KSpace::POS );
+  SCell exp_s001 = K.sCell( Point(1,1,2), KSpace::NEG );
   trace.endBlock();
-  return ( (s010 == SCell( Point(1,2,1), true  ) ) &&
-           (s001 == SCell( Point(1,1,2), false ) ) );
+  return ( (s010 == exp_s010 ) &&
+           (s001 == exp_s001 ) );
 }
 
 template <typename KSpace>
@@ -447,7 +448,7 @@ bool testCellularGridSpaceNDFaces()
       trace.info() << "[" << k << "]";
       DGtal::int64_t nf = 0;
       for ( typename Cells::const_iterator it = faces.begin(), itE = faces.end(); it != itE; ++it )
-        if ( K.uDim( *it ) == k ) { std::cout << " " << *it; ++nf; }
+        if ( K.uDim( *it ) == k ) { std::cout << " "; K.printCell( std::cout, *it ); ++nf; }
       trace.info() << " -> " << nf << std::endl;
       // Number of k-faces of N-cube is binom(n,k)*2^(n-k)
       DGtal::int64_t exp_nf = (DGtal::int64_t) round( boost::math::binomial_coefficient<double>(N, k) );
@@ -483,7 +484,7 @@ bool testCellularGridSpaceNDCoFaces()
       trace.info() << "[" << k << "]";
       DGtal::int64_t nf = 0;
       for ( typename Cells::const_iterator it = cofaces.begin(), itE = cofaces.end(); it != itE; ++it )
-        if ( K.uDim( *it ) == k ) { std::cout << " " << *it; ++nf; }
+        if ( K.uDim( *it ) == k ) { std::cout << " "; K.printCell( std::cout, *it ); ++nf; }
       trace.info() << " -> " << nf << std::endl;
       // Number of k-faces of N-cube is binom(n,k)*2^(n-k)
       DGtal::int64_t exp_nf = (DGtal::int64_t) round( boost::math::binomial_coefficient<double>(N, N-k) );
@@ -499,7 +500,7 @@ bool testCellularGridSpaceNDCoFaces()
 
 template <typename KSpace>
 bool
-testCodedKhalimskySpaceND()
+testKSpaceElementaryMethods()
 {
   typedef typename KSpace::Point Point;
   typedef typename KSpace::Cell  Cell;
@@ -602,16 +603,30 @@ int main( int argc, char** argv )
   //   && testCellularGridSpaceNDCoFaces<K4>();
 
   bool res = true
-    // && testCellularGridSpaceND<K2>()
-    // && testCellularGridSpaceND<CK2>()
-    // && testCellularGridSpaceND<K3>()
-    // && testCellularGridSpaceND<CK3>()
-    // && testCellularGridSpaceND<K4>()
-    // && testCellularGridSpaceND<CK4>()
+    && testCellularGridSpaceND<K2>()
+    && testCellularGridSpaceND<CK2>()
+    && testCellularGridSpaceND<K3>()
+    && testCellularGridSpaceND<CK3>()
+    && testCellularGridSpaceND<K4>()
+    && testCellularGridSpaceND<CK4>()
+    && testFindABel<K3>()
+    && testFindABel<CK3>()
     && testSurfelAdjacency<K2>()
     && testSurfelAdjacency<CK2>()
-    && testCodedKhalimskySpaceND<CK2>()
-    && testCodedKhalimskySpaceND<K2>()
+    && testCellularGridSpaceNDFaces<K2>()
+    && testCellularGridSpaceNDFaces<CK2>()
+    && testCellularGridSpaceNDFaces<K3>()
+    && testCellularGridSpaceNDFaces<CK3>()
+    && testCellularGridSpaceNDFaces<K4>()
+    && testCellularGridSpaceNDFaces<CK4>()
+    && testCellularGridSpaceNDCoFaces<K2>()
+    && testCellularGridSpaceNDCoFaces<CK2>()
+    && testCellularGridSpaceNDCoFaces<K3>()
+    && testCellularGridSpaceNDCoFaces<CK3>()
+    && testCellularGridSpaceNDCoFaces<K4>()
+    && testCellularGridSpaceNDCoFaces<CK4>()
+    && testKSpaceElementaryMethods<K2>()
+    && testKSpaceElementaryMethods<CK2>()
     ;
   
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
