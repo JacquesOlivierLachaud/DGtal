@@ -126,7 +126,7 @@ namespace DGtal
 
   private:
     /** the directions to visit. */
-    const Integer myDirs;
+    Integer myDirs;
     /** the current direction. */
     Dimension myDir;
 

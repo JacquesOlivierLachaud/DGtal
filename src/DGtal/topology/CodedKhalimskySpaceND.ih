@@ -314,11 +314,6 @@ computeDirectOrientationLUT()
         Sign inc_cell_sign = inc_cell & myNbCellTypes;
         mySDirectOrientation[ offset ]                 = inc_cell_sign;
         mySDirectOrientation[ offset + myNbCellTypes ] = ! inc_cell_sign;
-        trace.info() << "Cell[" << i << ",-].inc2(" << b << ") = " << inc_cell<< std::endl;
-        trace.info() << "Cell[" << i << ",-].sDirect(" << b << ") = " 
-                     << mySDirectOrientation[ offset ]  << std::endl;
-        trace.info() << "Cell[" << i << ",+].sDirect(" << b << ") = " 
-                     << mySDirectOrientation[ offset + myNbCellTypes ] << std::endl;
       }
 }
 
@@ -991,8 +986,8 @@ inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 uFirst( Cell p ) const
-{
-  return myBFDirs.select( p );
+{ // Keep only directions and set coords to 0.
+  return myBFAllDirs.select( p );
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
@@ -1000,7 +995,7 @@ inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 uLast( Cell p ) const
-{
+{ // Keep only directions and set coords to the ones of uppermost cell.
   return myBFAllDirs.select( p ) | myBFAllCoords.select( myUpperCellCode );
 }
 //-----------------------------------------------------------------------------
@@ -1179,8 +1174,8 @@ inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 sFirst( SCell p ) const
-{
-  return myBFAllDirs.select( p );
+{ // Keep only directions and sign and set coords to 0.
+  return myBFAllDirsAndSign.select( p );
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >
@@ -1188,8 +1183,8 @@ inline
 typename DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::Cell
 DGtal::CodedKhalimskySpaceND<dim, TInteger, TCode>::
 sLast( SCell p ) const
-{
-  return myBFAllDirs.select( p ) | myBFAllCoords.select( myUpperCellCode );
+{ // Keep only directions and sign and set coords to the ones of uppermost cell.
+  return myBFAllDirsAndSign.select( p ) | myBFAllCoords.select( myUpperCellCode );
 }
 //-----------------------------------------------------------------------------
 template < DGtal::Dimension dim, typename TInteger, typename TCode >

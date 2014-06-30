@@ -84,8 +84,8 @@ bool testCellularGridSpaceND()
   Point kp( spel );
   Cell center = K.uCell( kp );
   Cell c1 = K.uCell( kp );
-  Cell clow = K.uCell( low, kp );
-  Cell chigh = K.uCell( high, kp );
+  Cell clow = K.uCell( low, center );
+  Cell chigh = K.uCell( high, center );
   trace.info() << c1 << clow << chigh
          << " topo(c1)=" << K.uTopology( c1 ) << " dirs=";
   for ( DirIterator q = K.uDirs( clow ); q != 0; ++q )
@@ -93,12 +93,14 @@ bool testCellularGridSpaceND()
   trace.info() << endl;
   Cell f = K.uFirst( c1 );
   Cell l = K.uLast( c1 );
-  trace.info() << "Loop in " << clow << chigh << endl;
+  trace.info() << "Loop in ";
+  K.printCell( trace.info(), clow );
+  K.printlnCell( trace.info(), chigh );
   c1 = f;
   unsigned int nbelems = 0;
   do {
     ++nbelems;
-    // trace.info() << c1;
+    K.printCell( trace.info(), c1 );
   } while ( K.uNext( c1, f, l ) );
   trace.info() << " -> " << nbelems << " elements." << endl;
   unsigned int exp_nbelems = 1;
@@ -578,8 +580,10 @@ int main( int argc, char** argv )
   //   && testCellularGridSpaceNDCoFaces<K3>()
   //   && testCellularGridSpaceNDCoFaces<K4>();
 
-  bool res = testCodedKhalimskySpaceND<CK2>()
-    &&  testCodedKhalimskySpaceND<K2>();
+  bool res = testCellularGridSpaceND<K2>()
+    &&  testCellularGridSpaceND<CK2>()
+    && testCodedKhalimskySpaceND<CK2>()
+    && testCodedKhalimskySpaceND<K2>();
   
   trace.emphase() << ( res ? "Passed." : "Error." ) << endl;
   trace.endBlock();
