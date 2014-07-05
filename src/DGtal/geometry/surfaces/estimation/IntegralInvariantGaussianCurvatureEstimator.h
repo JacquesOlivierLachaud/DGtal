@@ -58,7 +58,7 @@
 
 #include "DGtal/shapes/implicit/ImplicitBall.h"
 
-#include "DGtal/math/linalg/EigenValues3D.h"
+#include "DGtal/math/linalg/EigenDecomposition.h"
 #include "DGtal/kernel/CCellFunctor.h"
 //////////////////////////////////////////////////////////////////////////////
 
@@ -71,7 +71,7 @@ namespace deprecated
 struct CurvatureInformations
 {
   typedef double Value;
-  typedef EigenValues3D< Value >::Vector3 Vector3;
+  typedef EigenDecomposition< 3, Value >::Vector Vector3;
   typedef SimpleMatrix< Value, 3, 3 > Matrix3x3;
   Value k1;
   Value k2;
@@ -162,7 +162,7 @@ class GaussianCurvatureFunctor3 : std::unary_function <double,double>
 {
 public:
   typedef double Value;
-  typedef EigenValues3D< Value >::Vector3 Vector3;
+  typedef EigenDecomposition< 3, Value >::Vector Vector3;
 
   GaussianCurvatureFunctor3(){}
 
@@ -195,7 +195,7 @@ protected:
       Value & k1,
       Value & k2 )
   {
-    EigenValues3D< Value >::getEigenDecomposition( matrix, eigenVectors, eigenValues );
+    EigenDecomposition< 3, Value >::getEigenDecomposition( matrix, eigenVectors, eigenValues );
 
     ASSERT ( eigenValues[ 0 ] == eigenValues[ 0 ] ); // NaN
     ASSERT ( (eigenValues[ 0 ] <= eigenValues[ 2 ]) && (eigenValues[ 0 ] <= eigenValues[ 1 ]) && (eigenValues[ 1 ] <= eigenValues[ 2 ]) );
@@ -216,7 +216,7 @@ class PrincipalCurvatureFunctor3 : std::unary_function <double,double>
 {
 public:
   typedef double Quantity;
-  typedef EigenValues3D< Quantity >::Vector3 Vector3;
+  typedef EigenDecomposition< 3, Quantity >::Vector Vector3;
   typedef CurvatureInformations Value;
 
   PrincipalCurvatureFunctor3(){}
@@ -255,7 +255,7 @@ protected:
       Quantity & k1,
       Quantity & k2 )
   {
-    EigenValues3D< Quantity >::getEigenDecomposition( matrix, eigenVectors, eigenValues );
+    EigenDecomposition< 3, Quantity >::getEigenDecomposition( matrix, eigenVectors, eigenValues );
 
     ASSERT ( eigenValues[ 0 ] == eigenValues[ 0 ] ); // NaN
     ASSERT ( (eigenValues[ 0 ] <= eigenValues[ 2 ]) && (eigenValues[ 0 ] <= eigenValues[ 1 ]) && (eigenValues[ 1 ] <= eigenValues[ 2 ]) );
@@ -706,7 +706,7 @@ public:
   typedef typename ValuesFunctor::Value Quantity;
   typedef typename PrincipalCurvatureFunctor::Value PrincipalCurvatures;
 
-  typedef typename EigenValues3D< Quantity >::Vector3 Vector3;
+  typedef typename EigenDecomposition< 3, Quantity >::Vector Vector3;
 
   typedef typename Convolver::PairIterators PairIterators;
 
