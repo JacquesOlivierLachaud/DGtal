@@ -33,6 +33,7 @@
 #include <DGtal/geometry/volumes/ConvexityHelper.h>
 #include <DGtal/geometry/tools/QuickHull.h>
 #include <DGtal/geometry/surfaces/estimation/PlaneProbingTetrahedronEstimator.h>
+#include "SymmetricConvexExpander.h"
 
 #include <polyscope/pick.h>
 #include <polyscope/polyscope.h>
@@ -54,57 +55,80 @@ typedef SurfMesh::Vertex                      Vertex;
 typedef DGtal::ConvexHullIntegralKernel< 3 >  Kernel3D;
 typedef DGtal::QuickHull< Kernel3D >          QuickHull3D;
 typedef std::size_t Size;
+
+// struct UnorderedPointSetPredicate
+// {
+//   typedef DGtal::Z3i::Point Point;
+//   const std::unordered_set< Point >* myS;
+//   explicit UnorderedPointSetPredicate( const std::unordered_set< Point >& S )
+//     : myS( &S ) {}
+//   bool operator()( const Point& p ) const
+//   { return myS->count( p ) != 0; }
+// };
+
+std::unordered_set< Point > immInterior;
+std::unordered_set< Point > immExterior;
+
 //typedef Z3i::KSpace::SCell SCell;
 //Polyscope global
 polyscope::SurfaceMesh *psMesh;
 polyscope::SurfaceMesh *psDualMesh;
-polyscope::SurfaceMesh *psOuterDualMesh;
+//polyscope::SurfaceMesh *psOuterDualMesh;
 polyscope::SurfaceMesh *psTriangle;
 polyscope::SurfaceMesh *psDelaunay;
 polyscope::PointCloud*  psCloud;
 polyscope::PointCloud*  psCloudRemaining;
 polyscope::PointCloud*  psCloudCvx;
 polyscope::PointCloud*  psCloudProc;
-polyscope::PointCloud*  psOuterCloudProc;
+polyscope::PointCloud*  psCloudProcCells;
+//polyscope::PointCloud*  psOuterCloudProc;
 polyscope::PointCloud*  psCloudInnerDelaunay;
 
 SurfMesh surfmesh;
 SurfMesh dual_surfmesh;
-SurfMesh outer_dual_surfmesh;
+//SurfMesh outer_dual_surfmesh;
 float gridstep   = 1.0;
 int   vertex_idx = -1;
 float Time = 0.0;
 int   nb_cones = 10;
 bool remove_empty_cells = false;
 bool local_tangency     = false;
+bool use_fastsymsep     = false;
+bool use_cvxhullvtx     = true;
 
 Size current = 0;
-Size outer_current = 0;
+Size current_primal_cell = 0;
+//Size outer_current = 0;
 std::vector< Size >      order;
-std::vector< Size >      outer_order;
+//std::vector< Size >      outer_order;
 std::vector< Point >     digital_points;
 std::vector< Point >     outer_digital_points;
 std::set< Point >        useless_points;
 std::vector< double >    intercepts;
-std::vector< double >    outer_intercepts;
-std::vector<std::vector<SH3::SurfaceMesh::Vertex>> dual_faces;
-std::vector<RealPoint>   dual_positions;
-std::vector<std::vector<SH3::SurfaceMesh::Vertex>> outer_dual_faces;
-std::vector<RealPoint>   outer_dual_positions;
+//std::vector< double >    outer_intercepts;
+// std::vector<std::vector<SH3::SurfaceMesh::Vertex>> dual_faces;
+// std::vector<RealPoint>   dual_positions;
+//std::vector<std::vector<SH3::SurfaceMesh::Vertex>> outer_dual_faces;
+//std::vector<RealPoint>   outer_dual_positions;
 std::vector<SCell> surfels;
 std::map<Point,Size> surfel2idx;
+//std::map<Point,Point> voxel2surfel;
+std::vector< Size >      order_primal_cells;
+std::vector< Point >     primal_cells;
 
 KSpace K;
 DGtal::DigitalConvexity< KSpace > dconv;
 DGtal::TangencyComputer< KSpace > TC;
-DGtal::TangencyComputer< KSpace > outer_TC;
+//DGtal::TangencyComputer< KSpace > outer_TC;
 DGtal::LatticeSetByIntervals< Space > LS;
-DGtal::LatticeSetByIntervals< Space > outer_LS;
+//DGtal::LatticeSetByIntervals< Space > outer_LS;
 
 typedef DGtal::TangencyComputer< KSpace >::Index Index;
 typedef std::vector< Index >  Indices;
 typedef double                Scalar;
 typedef std::vector< Scalar > Scalars;
+
+DualReconstruction< KSpace >* ptrReco = nullptr;
 
 Size pickPoint()
 {
@@ -119,19 +143,34 @@ Size pickPoint()
   if ( current == order.size() ) current = 0;
   return order[ current++ ];
 }
-Size pickOuterPoint()
+Size pickPrimalCell()
 {
-  if ( outer_order.size() != outer_digital_points.size() )
+  if ( order_primal_cells.size() != primal_cells.size() )
     {
       auto rng = std::default_random_engine {};
-      outer_order.resize( outer_digital_points.size() );
-      for ( Size i = 0; i < outer_order.size(); i++ ) outer_order[ i ] = i;
-      std::shuffle( outer_order.begin(), outer_order.end(), rng);
-      outer_current = 0;
+      order_primal_cells.resize( primal_cells.size() );
+      for ( Size i = 0; i < order_primal_cells.size(); i++ )
+        order_primal_cells[ i ] = i;
+      std::shuffle( order_primal_cells.begin(), order_primal_cells.end(), rng);
+      current = 0;
     }
-  if ( outer_current == outer_order.size() ) outer_current = 0;
-  return outer_order[ outer_current++ ];
+  if ( current_primal_cell == order_primal_cells.size() ) current_primal_cell = 0;
+  return order_primal_cells[ current_primal_cell++ ];
 }
+// JOL: Removing outer tangent delaunay complex, not very useful for now.
+// Size pickOuterPoint()
+// {
+//   if ( outer_order.size() != outer_digital_points.size() )
+//     {
+//       auto rng = std::default_random_engine {};
+//       outer_order.resize( outer_digital_points.size() );
+//       for ( Size i = 0; i < outer_order.size(); i++ ) outer_order[ i ] = i;
+//       std::shuffle( outer_order.begin(), outer_order.end(), rng);
+//       outer_current = 0;
+//     }
+//   if ( outer_current == outer_order.size() ) outer_current = 0;
+//   return outer_order[ outer_current++ ];
+// }
 
 // ----------------------------------------------------------------------
 // utilities pointel
@@ -148,6 +187,12 @@ RealPoint pointelPoint2RealPoint( Point q )
                     gridstep * ( q[ 1 ] - 0.5 ),
                     gridstep * ( q[ 2 ] - 0.5 ) );
 }
+RealPoint cellPoint2RealPoint( Point q )
+{
+  return RealPoint( gridstep * ( 0.5*q[ 0 ] - 0.5 ),
+                    gridstep * ( 0.5*q[ 1 ] - 0.5 ),
+                    gridstep * ( 0.5*q[ 2 ] - 0.5 ) );
+}
 void embedPointels( const std::vector< Point >& vq, std::vector< RealPoint >& vp )
 {
   vp.resize( vq.size() );
@@ -159,6 +204,12 @@ void digitizePointels( const std::vector< RealPoint >& vp, std::vector< Point >&
   vq.resize( vp.size() );
   for ( auto i = 0; i < vq.size(); ++i )
     vq[ i ] = pointelRealPoint2Point( vp[ i ] );
+}
+void embedCells( const std::vector< Point >& vq, std::vector< RealPoint >& vp )
+{
+  vp.resize( vq.size() );
+  for ( auto i = 0; i < vp.size(); ++i )
+    vp[ i ] = cellPoint2RealPoint( vq[ i ] );
 }
 
 // ----------------------------------------------------------------------
@@ -310,45 +361,64 @@ void computePlanes()
   psTriangle = polyscope::registerSurfaceMesh("Triangle", positions, faces);
 }
 
-void displayMidReconstruction()
-{
-  std::vector< RealPoint > mid_dual_positions( dual_positions.size() );
-  for ( auto i = 0; i < surfels.size(); i++ )
-    {
-      auto int_vox = K.interiorVoxel( surfels[ i ] );
-      auto ext_vox = K.exteriorVoxel( surfels[ i ] );
-      auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
-      auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
-      const double     s = intercepts[ i ] + 0.001; 
-      const RealPoint  q = ( 1.0 - s ) * int_p + s * ext_p;
-      const double    ds = outer_intercepts[ i ] + 0.001; 
-      const RealPoint dq = ( 1.0 - ds ) * ext_p + ds * int_p;
-      mid_dual_positions[ i ] = 0.5*(q+dq);
-    }
-  psDualMesh = polyscope::registerSurfaceMesh("Mid surface", mid_dual_positions, dual_faces);
-}
+// void displayMidReconstruction()
+// {
+//   std::vector< RealPoint > mid_dual_positions( dual_positions.size() );
+//   for ( auto i = 0; i < surfels.size(); i++ )
+//     {
+//       auto int_vox = K.interiorVoxel( surfels[ i ] );
+//       auto ext_vox = K.exteriorVoxel( surfels[ i ] );
+//       auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
+//       auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
+//       const double     s = intercepts[ i ] + 0.001; 
+//       const RealPoint  q = ( 1.0 - s ) * int_p + s * ext_p;
+//       const double    ds = outer_intercepts[ i ] + 0.001; 
+//       const RealPoint dq = ( 1.0 - ds ) * ext_p + ds * int_p;
+//       mid_dual_positions[ i ] = 0.5*(q+dq);
+//     }
+//   psDualMesh = polyscope::registerSurfaceMesh("Mid surface", mid_dual_positions, dual_faces);
+// }
 
 void displayReconstruction()
 {
-  for ( auto i = 0; i < surfels.size(); i++ )
-    {
-      auto int_vox = K.interiorVoxel( surfels[ i ] );
-      auto ext_vox = K.exteriorVoxel( surfels[ i ] );
-      auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
-      auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
-      const double    s = intercepts[ i ] + 0.001; 
-      const RealPoint q = ( 1.0 - s ) * int_p + s * ext_p;
-      dual_positions[ i ] = q;
-    }
-  psDualMesh = polyscope::registerSurfaceMesh("Reconstruction surface", dual_positions, dual_faces);
-  std::vector< Point > X;
-  for ( Size i = 0; i < current; i++ )
-    X.push_back( digital_points[ order[ i ] ] );
-  std::vector< RealPoint > emb_X;
-  embedVoxels( X, emb_X );
-  psCloudProc = polyscope::registerPointCloud( "Processed points", emb_X );
-  psCloudProc->setPointRadius( gridstep / 300.0 );
-
+  std::cout  << "displayReconstruction" << std::endl;
+  ptrReco->updateDualPositions();
+  std::cout  << "dual positions updated" << std::endl;
+  ptrReco->updatePlaneFaces();
+  std::cout  << "plane faces updated" << std::endl;
+  ptrReco->cleanUpPlaneFaces();
+  std::cout  << "plane faces cleaned up" << std::endl;
+  // for ( auto i = 0; i < surfels.size(); i++ )
+  //   {
+  //     auto int_vox = K.interiorVoxel( surfels[ i ] );
+  //     auto ext_vox = K.exteriorVoxel( surfels[ i ] );
+  //     auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
+  //     auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
+  //     const double    s = intercepts[ i ] + 0.001; 
+  //     const RealPoint q = ( 1.0 - s ) * int_p + s * ext_p;
+  //     dual_positions[ i ] = q;
+  //   }
+  psDualMesh = polyscope::registerSurfaceMesh("Reconstruction surface",
+                                              ptrReco->dual_positions, ptrReco->dual_faces);
+  psDualMesh->addVertexScalarQuantity("planes", ptrReco->plane_indices );
+  {
+    std::vector< Point > X;
+    for ( Size i = 0; i < current; i++ )
+      X.push_back( digital_points[ order[ i ] ] );
+    std::vector< RealPoint > emb_X;
+    embedVoxels( X, emb_X );
+    psCloudProc = polyscope::registerPointCloud( "Processed points", emb_X );
+    psCloudProc->setPointRadius( gridstep / 300.0 );
+  }
+  {
+    std::vector< Point > X;
+    for ( Size i = 0; i < current_primal_cell; i++ )
+      X.push_back( primal_cells[ order_primal_cells[ i ] ] );
+    std::vector< RealPoint > emb_X;
+    embedCells( X, emb_X );
+    psCloudProcCells = polyscope::registerPointCloud( "Processed cells", emb_X );
+    psCloudProcCells->setPointRadius( gridstep / 600.0 );
+  }
 }
 
 void displayRemainingPoints()
@@ -366,279 +436,279 @@ void displayRemainingPoints()
   psCloudProc->setPointRadius( gridstep / 200.0 );
 }
 
-void displayOuterReconstruction()
-{
-  for ( auto i = 0; i < surfels.size(); i++ )
-    {
-      auto int_vox = K.interiorVoxel( surfels[ i ] );
-      auto ext_vox = K.exteriorVoxel( surfels[ i ] );
-      auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
-      auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
-      const double    s = outer_intercepts[ i ] + 0.001; 
-      const RealPoint q = ( 1.0 - s ) * ext_p + s * int_p;
-      outer_dual_positions[ i ] = q;
-    }
-  psOuterDualMesh = polyscope::registerSurfaceMesh("Reconstruction outer surface", outer_dual_positions, outer_dual_faces);
-  std::vector< Point > X;
-  for ( Size i = 0; i < outer_current; i++ )
-    X.push_back( outer_digital_points[ outer_order[ i ] ] );
-  std::vector< RealPoint > emb_X;
-  embedVoxels( X, emb_X );
-  psOuterCloudProc = polyscope::registerPointCloud( "Processed outer points", emb_X );
-  psOuterCloudProc->setPointRadius( gridstep / 300.0 );
+// void displayOuterReconstruction()
+// {
+//   for ( auto i = 0; i < surfels.size(); i++ )
+//     {
+//       auto int_vox = K.interiorVoxel( surfels[ i ] );
+//       auto ext_vox = K.exteriorVoxel( surfels[ i ] );
+//       auto int_p   = voxelPoint2RealPoint( int_vox ); //K.uCoords( int_vox ) );
+//       auto ext_p   = voxelPoint2RealPoint( ext_vox ); //K.uCoords( ext_vox ) );
+//       const double    s = outer_intercepts[ i ] + 0.001; 
+//       const RealPoint q = ( 1.0 - s ) * ext_p + s * int_p;
+//       outer_dual_positions[ i ] = q;
+//     }
+//   psOuterDualMesh = polyscope::registerSurfaceMesh("Reconstruction outer surface", outer_dual_positions, outer_dual_faces);
+//   std::vector< Point > X;
+//   for ( Size i = 0; i < outer_current; i++ )
+//     X.push_back( outer_digital_points[ outer_order[ i ] ] );
+//   std::vector< RealPoint > emb_X;
+//   embedVoxels( X, emb_X );
+//   psOuterCloudProc = polyscope::registerPointCloud( "Processed outer points", emb_X );
+//   psOuterCloudProc->setPointRadius( gridstep / 300.0 );
 
-}
+// }
 
-void updateReconstructionFromCells( const std::vector< Point >& X,
-                                    const std::vector< Point >& cells )
-{
-  // Compute plane
-  const Vector N = ( X[ 1 ] - X[ 0 ] ).crossProduct( X[ 2 ] - X[ 0 ] );
-  const auto   a = N.dot( X[ 0 ] );
-  // Extract 1-cells which are dual to surfels
-  for ( auto&& kp : cells )
-    {
-      // Look for dimension 1 cells.
-      const Cell c = K.uCell( kp );
-      if ( K.uDim( c ) != 1 ) continue;
-      // Compute dual surfel
-      const Dimension t = *K.uDirs( c );
-      const Cell p0 = K.uIncident( c, t, false );
-      const Cell p1 = K.uIncident( c, t, true );
-      const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
-      const auto it = surfel2idx.find( dual_kp );
-      if ( it == surfel2idx.cend() ) continue;
-      // Compute and update intercept
-      const Size  idx     = it->second;
-      const SCell surfel  = surfels[ idx ];
-      const Point int_vox = K.interiorVoxel( surfel );
-      const Point ext_vox = K.exteriorVoxel( surfel );
-      const auto  int_val = N.dot( int_vox );
-      const auto  ext_val = N.dot( ext_vox );
-      // std::cout << " int_val=" << int_val << " a=" << a << " ext_val=" << ext_val;
-      if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
-        {
-          if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
-            trace.warning() << "Bad intersection" << std::endl;
-          continue;
-        }
-      const double s     = (double)( a - int_val ) / (double) (ext_val - int_val );
-      const double old_s = intercepts[ idx ];
-      // if ( old_s < s ) std::cout  << " s=" << old_s << " -> " << s << std::endl;
-      intercepts[ idx ] = std::max( old_s, s );
-    }
-}
+// void updateReconstructionFromCells( const std::vector< Point >& X,
+//                                     const std::vector< Point >& cells )
+// {
+//   // Compute plane
+//   const Vector N = ( X[ 1 ] - X[ 0 ] ).crossProduct( X[ 2 ] - X[ 0 ] );
+//   const auto   a = N.dot( X[ 0 ] );
+//   // Extract 1-cells which are dual to surfels
+//   for ( auto&& kp : cells )
+//     {
+//       // Look for dimension 1 cells.
+//       const Cell c = K.uCell( kp );
+//       if ( K.uDim( c ) != 1 ) continue;
+//       // Compute dual surfel
+//       const Dimension t = *K.uDirs( c );
+//       const Cell p0 = K.uIncident( c, t, false );
+//       const Cell p1 = K.uIncident( c, t, true );
+//       const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
+//       const auto it = surfel2idx.find( dual_kp );
+//       if ( it == surfel2idx.cend() ) continue;
+//       // Compute and update intercept
+//       const Size  idx     = it->second;
+//       const SCell surfel  = surfels[ idx ];
+//       const Point int_vox = K.interiorVoxel( surfel );
+//       const Point ext_vox = K.exteriorVoxel( surfel );
+//       const auto  int_val = N.dot( int_vox );
+//       const auto  ext_val = N.dot( ext_vox );
+//       // std::cout << " int_val=" << int_val << " a=" << a << " ext_val=" << ext_val;
+//       if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
+//         {
+//           if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
+//             trace.warning() << "Bad intersection" << std::endl;
+//           continue;
+//         }
+//       const double s     = (double)( a - int_val ) / (double) (ext_val - int_val );
+//       const double old_s = intercepts[ idx ];
+//       // if ( old_s < s ) std::cout  << " s=" << old_s << " -> " << s << std::endl;
+//       intercepts[ idx ] = std::max( old_s, s );
+//     }
+// }
 
-void updateOuterReconstructionFromCells( const std::vector< Point >& X,
-                                         const std::vector< Point >& cells )
-{
-  // Compute plane
-  const Vector N = ( X[ 1 ] - X[ 0 ] ).crossProduct( X[ 2 ] - X[ 0 ] );
-  const auto   a = N.dot( X[ 0 ] );
-  // Extract 1-cells which are dual to surfels
-  for ( auto&& kp : cells )
-    {
-      // Look for dimension 1 cells.
-      const Cell c = K.uCell( kp );
-      if ( K.uDim( c ) != 1 ) continue;
-      // Compute dual surfel
-      const Dimension t = *K.uDirs( c );
-      const Cell p0 = K.uIncident( c, t, false );
-      const Cell p1 = K.uIncident( c, t, true );
-      const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
-      const auto it = surfel2idx.find( dual_kp );
-      if ( it == surfel2idx.cend() ) continue;
-      // Compute and update intercept
-      const Size  idx     = it->second;
-      const SCell surfel  = surfels[ idx ];
-      const Point int_vox = K.interiorVoxel( surfel );
-      const Point ext_vox = K.exteriorVoxel( surfel );
-      const auto  int_val = N.dot( int_vox );
-      const auto  ext_val = N.dot( ext_vox );
-      if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
-        {
-          if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
-            trace.warning() << "Bad intersection" << std::endl;
-          continue;
-        }
-      const double s = (double)( a - ext_val ) / (double) (int_val - ext_val );
-      outer_intercepts[ idx ] = std::max( outer_intercepts[ idx ], s );
-    }
-}
+// void updateOuterReconstructionFromCells( const std::vector< Point >& X,
+//                                          const std::vector< Point >& cells )
+// {
+//   // Compute plane
+//   const Vector N = ( X[ 1 ] - X[ 0 ] ).crossProduct( X[ 2 ] - X[ 0 ] );
+//   const auto   a = N.dot( X[ 0 ] );
+//   // Extract 1-cells which are dual to surfels
+//   for ( auto&& kp : cells )
+//     {
+//       // Look for dimension 1 cells.
+//       const Cell c = K.uCell( kp );
+//       if ( K.uDim( c ) != 1 ) continue;
+//       // Compute dual surfel
+//       const Dimension t = *K.uDirs( c );
+//       const Cell p0 = K.uIncident( c, t, false );
+//       const Cell p1 = K.uIncident( c, t, true );
+//       const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
+//       const auto it = surfel2idx.find( dual_kp );
+//       if ( it == surfel2idx.cend() ) continue;
+//       // Compute and update intercept
+//       const Size  idx     = it->second;
+//       const SCell surfel  = surfels[ idx ];
+//       const Point int_vox = K.interiorVoxel( surfel );
+//       const Point ext_vox = K.exteriorVoxel( surfel );
+//       const auto  int_val = N.dot( int_vox );
+//       const auto  ext_val = N.dot( ext_vox );
+//       if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
+//         {
+//           if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
+//             trace.warning() << "Bad intersection" << std::endl;
+//           continue;
+//         }
+//       const double s = (double)( a - ext_val ) / (double) (int_val - ext_val );
+//       outer_intercepts[ idx ] = std::max( outer_intercepts[ idx ], s );
+//     }
+// }
 
-void updateReconstructionFromCells( Point x, Point y,
-                                    const std::vector< Point >& cells )
-{
-  // Compute plane
-  const Vector     U = y - x;
-  if ( U == Vector::zero ) return;
-  const double     l = U.norm();
-  const RealVector u = U.getNormalized();
-  const RealPoint  p( x[ 0 ], x[ 1 ], x[ 2 ] );
-  // Extract 1-cells which are dual to surfels
-  for ( auto&& kp : cells )
-    {
-      // Look for dimension 1 cells.
-      const Cell c = K.uCell( kp );
-      if ( K.uDim( c ) != 1 ) continue;
-      // Compute dual surfel
-      const Dimension r = *K.uDirs( c );
-      const Cell p0 = K.uIncident( c, r, false );
-      const Cell p1 = K.uIncident( c, r, true );
-      const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
-      const auto it = surfel2idx.find( dual_kp );
-      if ( it == surfel2idx.cend() ) continue;
-      // Compute and update intercept
-      const Size  idx     = it->second;
-      const SCell surfel  = surfels[ idx ];
-      const Point int_vox = K.interiorVoxel( surfel );
-      const Point ext_vox = K.exteriorVoxel( surfel );
-      const Vector V      = ext_vox - int_vox;
-      const RealVector v  = V.getNormalized();
-      const RealPoint  q( int_vox[ 0 ], int_vox[ 1 ], int_vox[ 2 ] );
-      const auto   uv     = u.dot( v );
-      if ( uv == 0 ) continue;
-      // Solving system to get closest points.
-      const auto   c1     = ( q - p ).dot( u );
-      const auto   c2     = ( p - q ).dot( v );
-      const double d      =  1.0-uv*uv;
-      const double s      = ( c1 + uv * c2 ) / d; // on [xy]
-      const double t      = ( c2 + uv * c1 ) / d; // on linel
-      if ( ( s < 0.0 ) || ( s > l ) ) continue;
-      // if ( ( t < 0.0 ) || ( t > 1.0 ) ) continue;
-      intercepts[ idx ] = std::max( intercepts[ idx ], std::min( t, 1.0 ) );
-    }
-}
+// void updateReconstructionFromCells( Point x, Point y,
+//                                     const std::vector< Point >& cells )
+// {
+//   // Compute plane
+//   const Vector     U = y - x;
+//   if ( U == Vector::zero ) return;
+//   const double     l = U.norm();
+//   const RealVector u = U.getNormalized();
+//   const RealPoint  p( x[ 0 ], x[ 1 ], x[ 2 ] );
+//   // Extract 1-cells which are dual to surfels
+//   for ( auto&& kp : cells )
+//     {
+//       // Look for dimension 1 cells.
+//       const Cell c = K.uCell( kp );
+//       if ( K.uDim( c ) != 1 ) continue;
+//       // Compute dual surfel
+//       const Dimension r = *K.uDirs( c );
+//       const Cell p0 = K.uIncident( c, r, false );
+//       const Cell p1 = K.uIncident( c, r, true );
+//       const Point dual_kp = K.uCoords( p0 ) + K.uCoords( p1 ) + Point::diagonal(1);
+//       const auto it = surfel2idx.find( dual_kp );
+//       if ( it == surfel2idx.cend() ) continue;
+//       // Compute and update intercept
+//       const Size  idx     = it->second;
+//       const SCell surfel  = surfels[ idx ];
+//       const Point int_vox = K.interiorVoxel( surfel );
+//       const Point ext_vox = K.exteriorVoxel( surfel );
+//       const Vector V      = ext_vox - int_vox;
+//       const RealVector v  = V.getNormalized();
+//       const RealPoint  q( int_vox[ 0 ], int_vox[ 1 ], int_vox[ 2 ] );
+//       const auto   uv     = u.dot( v );
+//       if ( uv == 0 ) continue;
+//       // Solving system to get closest points.
+//       const auto   c1     = ( q - p ).dot( u );
+//       const auto   c2     = ( p - q ).dot( v );
+//       const double d      =  1.0-uv*uv;
+//       const double s      = ( c1 + uv * c2 ) / d; // on [xy]
+//       const double t      = ( c2 + uv * c1 ) / d; // on linel
+//       if ( ( s < 0.0 ) || ( s > l ) ) continue;
+//       // if ( ( t < 0.0 ) || ( t > 1.0 ) ) continue;
+//       intercepts[ idx ] = std::max( intercepts[ idx ], std::min( t, 1.0 ) );
+//     }
+// }
 
-void updateReconstructionFromTangentConeLines( int vertex_idx )
-{
-  typedef QuickHull3D::IndexRange IndexRange;
-  if ( digital_points.empty() ) return;
-  if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
-  typedef std::size_t Size;
-  const auto p = digital_points[ vertex_idx ];
-  // trace.beginBlock( "Compute tangent cone" );
-  auto local_X_idx = TC.getCotangentPoints( p );
-  std::vector< Point > local_X;
-  for ( auto idx : local_X_idx )
-    local_X.push_back( TC.point( idx ) );
-  for ( auto&& q : local_X )
-    {
-      std::vector< Point > X { p, q };
-      const auto line_cells = dconv.StarCvxH( X, LS.axis() );
-      updateReconstructionFromCells( p, q, line_cells.toPointRange() );
-    }
-}
+// void updateReconstructionFromTangentConeLines( int vertex_idx )
+// {
+//   typedef QuickHull3D::IndexRange IndexRange;
+//   if ( digital_points.empty() ) return;
+//   if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
+//   typedef std::size_t Size;
+//   const auto p = digital_points[ vertex_idx ];
+//   // trace.beginBlock( "Compute tangent cone" );
+//   auto local_X_idx = TC.getCotangentPoints( p );
+//   std::vector< Point > local_X;
+//   for ( auto idx : local_X_idx )
+//     local_X.push_back( TC.point( idx ) );
+//   for ( auto&& q : local_X )
+//     {
+//       std::vector< Point > X { p, q };
+//       const auto line_cells = dconv.StarCvxH( X, LS.axis() );
+//       updateReconstructionFromCells( p, q, line_cells.toPointRange() );
+//     }
+// }
 
-void updateReconstructionFromTangentConeTriangles( int vertex_idx )
-{
-  typedef QuickHull3D::IndexRange IndexRange;
-  if ( digital_points.empty() ) return;
-  if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
-  typedef std::size_t Size;
-  const auto p = digital_points[ vertex_idx ];
-  // trace.beginBlock( "Compute tangent cone" );
-  auto local_X_idx = TC.getCotangentPoints( p );
-  local_X_idx.push_back( vertex_idx );
-  std::vector< Point > local_X;
-  for ( auto idx : local_X_idx )
-    local_X.push_back( TC.point( idx ) );
-  QuickHull3D hull;
-  hull.setInput( local_X, false );
-  hull.computeConvexHull();
-  std::vector< Point > positions;
-  hull.getVertexPositions( positions );
+// void updateReconstructionFromTangentConeTriangles( int vertex_idx )
+// {
+//   typedef QuickHull3D::IndexRange IndexRange;
+//   if ( digital_points.empty() ) return;
+//   if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
+//   typedef std::size_t Size;
+//   const auto p = digital_points[ vertex_idx ];
+//   // trace.beginBlock( "Compute tangent cone" );
+//   auto local_X_idx = TC.getCotangentPoints( p );
+//   local_X_idx.push_back( vertex_idx );
+//   std::vector< Point > local_X;
+//   for ( auto idx : local_X_idx )
+//     local_X.push_back( TC.point( idx ) );
+//   QuickHull3D hull;
+//   hull.setInput( local_X, false );
+//   hull.computeConvexHull();
+//   std::vector< Point > positions;
+//   hull.getVertexPositions( positions );
   
-  std::vector< IndexRange > facet_vertices;
-  bool ok = hull.getFacetVertices( facet_vertices );
-  if ( ! ok ) trace.error() << "Bad facet computation" << std::endl;
-  // Update from all cones
-  std::set< std::pair< Point, Point > > edges;
-  for ( auto&& facet : facet_vertices )
-    {
-      const auto nb = facet.size();
-      for ( auto i = 0; i < nb; i++ )
-        edges.insert( std::make_pair( positions[ facet[ i ] ],
-                                      positions[ facet[ (i+1)%nb ] ] ) );
-    }
-  for ( auto&& e : edges )
-    {
-      if ( e.second < e.first ) continue;
-      std::vector< Point > X { p, e.first, e.second };
-      const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
-      if ( LS.includes( triangle_cells ) ) // tangent to shape
-        updateReconstructionFromCells( X, triangle_cells.toPointRange() );
-    }
+//   std::vector< IndexRange > facet_vertices;
+//   bool ok = hull.getFacetVertices( facet_vertices );
+//   if ( ! ok ) trace.error() << "Bad facet computation" << std::endl;
+//   // Update from all cones
+//   std::set< std::pair< Point, Point > > edges;
+//   for ( auto&& facet : facet_vertices )
+//     {
+//       const auto nb = facet.size();
+//       for ( auto i = 0; i < nb; i++ )
+//         edges.insert( std::make_pair( positions[ facet[ i ] ],
+//                                       positions[ facet[ (i+1)%nb ] ] ) );
+//     }
+//   for ( auto&& e : edges )
+//     {
+//       if ( e.second < e.first ) continue;
+//       std::vector< Point > X { p, e.first, e.second };
+//       const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
+//       if ( LS.includes( triangle_cells ) ) // tangent to shape
+//         updateReconstructionFromCells( X, triangle_cells.toPointRange() );
+//     }
 
-  // Miss features
-  // // Update from all facets
-  // for ( auto&& facet : facet_vertices )
-  //   {
-  //     const auto nb = facet.size();
-  //     for ( auto i = 0; i < nb; i++ )
-  //       for ( auto j = i+1; j < nb; j++ )
-  //         for ( auto k = j+1; k < nb; k++ )
-  //           {
-  //             std::vector< Point > X
-  //               { positions[ facet[ i ] ],
-  //                 positions[ facet[ j ] ],
-  //                 positions[ facet[ k ] ] };
-  //             const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
-  //             if ( LS.includes( triangle_cells ) ) // tangent to shape
-  //               updateReconstructionFromCells( X, triangle_cells.toPointRange() );
-  //           }
-  //   }
+//   // Miss features
+//   // // Update from all facets
+//   // for ( auto&& facet : facet_vertices )
+//   //   {
+//   //     const auto nb = facet.size();
+//   //     for ( auto i = 0; i < nb; i++ )
+//   //       for ( auto j = i+1; j < nb; j++ )
+//   //         for ( auto k = j+1; k < nb; k++ )
+//   //           {
+//   //             std::vector< Point > X
+//   //               { positions[ facet[ i ] ],
+//   //                 positions[ facet[ j ] ],
+//   //                 positions[ facet[ k ] ] };
+//   //             const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
+//   //             if ( LS.includes( triangle_cells ) ) // tangent to shape
+//   //               updateReconstructionFromCells( X, triangle_cells.toPointRange() );
+//   //           }
+//   //   }
 
-  // Too costly
-  // // Update from all possible triplets
-  // const auto nb = positions.size();
-  // for ( auto i = 0; i < nb; i++ )
-  //   for ( auto j = i+1; j < nb; j++ )
-  //     for ( auto k = j+1; k < nb; k++ )
-  //       {
-  //         std::vector< Point > X { positions[ i ], positions[ j ], positions[ k ] };
-  //         const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
-  //         if ( LS.includes( triangle_cells ) ) // tangent to shape
-  //           updateReconstructionFromCells( X, triangle_cells.toPointRange() );
-  //       }
-  // Time = trace.endBlock();
-}
+//   // Too costly
+//   // // Update from all possible triplets
+//   // const auto nb = positions.size();
+//   // for ( auto i = 0; i < nb; i++ )
+//   //   for ( auto j = i+1; j < nb; j++ )
+//   //     for ( auto k = j+1; k < nb; k++ )
+//   //       {
+//   //         std::vector< Point > X { positions[ i ], positions[ j ], positions[ k ] };
+//   //         const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
+//   //         if ( LS.includes( triangle_cells ) ) // tangent to shape
+//   //           updateReconstructionFromCells( X, triangle_cells.toPointRange() );
+//   //       }
+//   // Time = trace.endBlock();
+// }
 
 
-///////////////////////////////////////////////////////////////////////////////
-void computeTangentCone( int vertex_idx)
-{
-  if ( digital_points.empty() ) return;
-  // if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
-  const auto p = digital_points[ vertex_idx ];
-  // trace.beginBlock( "Compute tangent cone" );
-  auto local_X_idx = TC.getCotangentPoints( p );
-  std::cout << "#cone=" << local_X_idx.size() << std::endl;
-  local_X_idx.push_back( vertex_idx );
-  std::vector< Point > local_X;
-  std::vector< RealPoint > emb_local_X;
-  for ( auto idx : local_X_idx )
-    local_X.push_back( TC.point( idx ) );
-  std::vector< double > values( local_X.size(), 0.0 );
-  values.back() = 1.0;
-  embedVoxels( local_X, emb_local_X );
-  psCloud = polyscope::registerPointCloud( "Tangent cone", emb_local_X );
-  psCloud->setPointRadius( gridstep / 300.0 );
-  psCloud->addScalarQuantity( "Classification", values );
-  QuickHull3D hull;
-  hull.setInput( local_X, false );
-  hull.computeConvexHull();
-  std::vector< Point > positions;
-  std::vector< RealPoint > emb_positions;
-  hull.getVertexPositions( positions );
-  // Time = trace.endBlock();
-  embedVoxels( positions, emb_positions );
-  psCloudCvx = polyscope::registerPointCloud( "Tangent cone vertices", emb_positions );
-  psCloudCvx->setPointRadius( gridstep / 200.0  );
+// ///////////////////////////////////////////////////////////////////////////////
+// void computeTangentCone( int vertex_idx)
+// {
+//   if ( digital_points.empty() ) return;
+//   // if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
+//   const auto p = digital_points[ vertex_idx ];
+//   // trace.beginBlock( "Compute tangent cone" );
+//   auto local_X_idx = TC.getCotangentPoints( p );
+//   std::cout << "#cone=" << local_X_idx.size() << std::endl;
+//   local_X_idx.push_back( vertex_idx );
+//   std::vector< Point > local_X;
+//   std::vector< RealPoint > emb_local_X;
+//   for ( auto idx : local_X_idx )
+//     local_X.push_back( TC.point( idx ) );
+//   std::vector< double > values( local_X.size(), 0.0 );
+//   values.back() = 1.0;
+//   embedVoxels( local_X, emb_local_X );
+//   psCloud = polyscope::registerPointCloud( "Tangent cone", emb_local_X );
+//   psCloud->setPointRadius( gridstep / 300.0 );
+//   psCloud->addScalarQuantity( "Classification", values );
+//   QuickHull3D hull;
+//   hull.setInput( local_X, false );
+//   hull.computeConvexHull();
+//   std::vector< Point > positions;
+//   std::vector< RealPoint > emb_positions;
+//   hull.getVertexPositions( positions );
+//   // Time = trace.endBlock();
+//   embedVoxels( positions, emb_positions );
+//   psCloudCvx = polyscope::registerPointCloud( "Tangent cone vertices", emb_positions );
+//   psCloudCvx->setPointRadius( gridstep / 200.0  );
 
-  updateReconstructionFromTangentConeTriangles( vertex_idx );
-  displayReconstruction();
-}
+//   updateReconstructionFromTangentConeTriangles( vertex_idx );
+//   displayReconstruction();
+// }
 
 ///////////////////////////////////////////////////////////////////////////////
 void  updateReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
@@ -646,9 +716,9 @@ void  updateReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
   if ( digital_points.empty() ) return;
   // if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
   const auto p = digital_points[ vertex_idx ];
+  std::vector< Point > local_X;
   auto local_X_idx = TC.getCotangentPoints( p );
   local_X_idx.push_back( vertex_idx );
-  std::vector< Point > local_X;
   for ( auto idx : local_X_idx )
     local_X.push_back( TC.point( idx ) );
   DGtal::LatticeSetByIntervals< Space > local_LS;
@@ -721,7 +791,7 @@ void  updateReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
       std::vector< Point > X = dcomplex.faceVertexPositions( f0 );
       const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
       //if ( LS.includes( triangle_cells ) ) // tangent to shape
-      updateReconstructionFromCells( X, triangle_cells.toPointRange() );
+      ptrReco->updateReconstructionFromCells( X, triangle_cells.toPointRange() );
     }
   useless_points.insert( p );
   for ( Index v = 0; v < dcomplex.nbVertices(); v++ )
@@ -732,26 +802,53 @@ void  updateReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
     }
 }
 
-
 ///////////////////////////////////////////////////////////////////////////////
-void updateOuterReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
+void  updateReconstructionFromLocalTangentDelaunayComplexSymSep( Size idx )
 {
-  if ( outer_digital_points.empty() ) return;
+  if ( digital_points.empty() ) return;
   // if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
-  const auto p = outer_digital_points[ vertex_idx ];
-  auto local_X_idx = outer_TC.getCotangentPoints( p );
-  local_X_idx.push_back( vertex_idx );
-  std::vector< Point > local_X;
-  for ( auto idx : local_X_idx )
-    local_X.push_back( outer_TC.point( idx ) );
+  const auto p = primal_cells[ idx ];
+  UnorderedPointSetPredicate iinterior( immInterior );
+  UnorderedPointSetPredicate iexterior( immExterior );
+  SymmetricSeparator< KSpace,
+                      UnorderedPointSetPredicate,
+                      UnorderedPointSetPredicate > SS( iinterior, iexterior );
+  bool wip = SS.init( p );
+  if ( ! wip ) return;
+  const Point sp = *(SS.myActive.cbegin());
+  const Point ep = SS.symmetric( sp );
+  const Point ip = sp - ( ep - sp );
+  if ( use_fastsymsep )
+    while ( wip ) wip = SS.advanceFast(); 
+  else
+    while ( wip ) wip = SS.advance(); 
+  // std::cout << "#symsep=" << SS.myPoints.size() << std::endl;
+  std::vector< Point > local_X( SS.myPoints.cbegin(), SS.myPoints.cend() );
+
+  DGtal::LatticeSetByIntervals< Space > local_LS;
+  // if ( local_tangency ) 
+  //   local_LS = DGtal::LatticeSetByIntervals< Space >( local_X.cbegin(), local_X.cend(), 0 ).starOfPoints();
+
+  if ( use_cvxhullvtx )
+    {
+      QuickHull3D hull;
+      hull.setInput( local_X, false );
+      hull.computeConvexHull();
+      std::vector< Point > hull_local_X;
+      hull.getVertexPositions( hull_local_X );
+      std::swap( local_X, hull_local_X );
+    }
+  local_X.push_back( ip );
 
   typedef ConvexCellComplex< Point >::Index       Index;
   typedef ConvexCellComplex< Point >::VertexRange VertexRange;
   typedef ConvexCellComplex< Point >::Cell        Cell;
   ConvexCellComplex< Point > dcomplex;
   bool ok = CvxHelper::computeDelaunayCellComplex( dcomplex, local_X, false );
-  if ( ! ok )
-    trace.error() << "Input set of points is not full dimensional." << std::endl;
+  if ( ! ok ) {
+    // trace.error() << "Input set of points is not full dimensional." << std::endl;
+    return;
+  }
   
   dcomplex.requireFaceGeometry();
   // Filter cells
@@ -762,16 +859,24 @@ void updateOuterReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
         auto Y = dcomplex.cellVertexPositions( c );
         auto P = dconv.makePolytope( Y );
         if ( P.countUpTo( Y.size()+1 ) >= Y.size()+1 ) continue;
-        is_cell_tangent[ c ] = dconv.isFullySubconvex( P, outer_LS );
+        is_cell_tangent[ c ] = dconv.isFullySubconvex( P, LS );
+          // local_tangency
+          // ? dconv.isFullySubconvex( P, local_LS )
+          // : dconv.isFullySubconvex( P, LS );
       }
   else
     for ( Index c = 0; c < dcomplex.nbCells(); ++c )
       {
       	auto Y = dcomplex.cellVertexPositions( c );
-        is_cell_tangent[ c ] = dconv.isFullySubconvex( Y, outer_LS );
+        is_cell_tangent[ c ] = dconv.isFullySubconvex( Y, LS );
+          // local_tangency
+          // ? dconv.isFullySubconvex( Y, local_LS )
+          // : dconv.isFullySubconvex( Y, LS );
       }
   // Get faces
   std::vector< std::vector<SH3::SurfaceMesh::Vertex> > del_faces;
+  std::vector< RealPoint >   del_positions;
+  std::set<Index> boundary_or_ext_points;
   for ( Index f = 0; f < dcomplex.nbFaces(); ++f )
     {
       auto f0 = std::make_pair( f, false );
@@ -783,6 +888,16 @@ void updateOuterReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
           std::swap( f0, f1 );
           std::swap( c0, c1 );
         }
+      if ( ! is_cell_tangent[ c0 ] )
+        {
+          auto V = dcomplex.cellVertices( c0 );
+          boundary_or_ext_points.insert( V.cbegin(), V.cend() );
+        }
+      if ( ! dcomplex.isInfinite( c1 ) && ! is_cell_tangent[ c1 ] )
+        {
+          auto V = dcomplex.cellVertices( c1 );
+          boundary_or_ext_points.insert( V.cbegin(), V.cend() );
+        }
       bool bdry =
         ( is_cell_tangent[ c0 ] && ( dcomplex.isInfinite( c1 )
                                      || ( ! is_cell_tangent[ c1 ] ) ) )
@@ -791,11 +906,84 @@ void updateOuterReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
                                        && ( is_cell_tangent[ c1 ] ) ) );
       if ( ! bdry ) continue;
       std::vector< Point > X = dcomplex.faceVertexPositions( f0 );
-      const auto triangle_cells = dconv.StarCvxH( X, outer_LS.axis() );
+      const auto triangle_cells = dconv.StarCvxH( X, LS.axis() );
       //if ( LS.includes( triangle_cells ) ) // tangent to shape
-      updateOuterReconstructionFromCells( X, triangle_cells.toPointRange() );
+      ptrReco->updateReconstructionFromCells( X, triangle_cells.toPointRange() );
     }
+  // useless_points.insert( p );
+  // for ( Index v = 0; v < dcomplex.nbVertices(); v++ )
+  //   {
+  //     auto q = dcomplex.position( v );
+  //     if ( ! boundary_or_ext_points.count( v ) )
+  //       useless_points.insert( q );
+  //   }
 }
+
+
+// JOL: Removing outer tangent delaunay complex, not very useful for now.
+// ///////////////////////////////////////////////////////////////////////////////
+// void updateOuterReconstructionFromLocalTangentDelaunayComplex( int vertex_idx)
+// {
+//   if ( outer_digital_points.empty() ) return;
+//   // if ( vertex_idx < 0 || vertex_idx >= digital_points.size() ) return;
+//   const auto p = outer_digital_points[ vertex_idx ];
+//   auto local_X_idx = outer_TC.getCotangentPoints( p );
+//   local_X_idx.push_back( vertex_idx );
+//   std::vector< Point > local_X;
+//   for ( auto idx : local_X_idx )
+//     local_X.push_back( outer_TC.point( idx ) );
+
+//   typedef ConvexCellComplex< Point >::Index       Index;
+//   typedef ConvexCellComplex< Point >::VertexRange VertexRange;
+//   typedef ConvexCellComplex< Point >::Cell        Cell;
+//   ConvexCellComplex< Point > dcomplex;
+//   bool ok = CvxHelper::computeDelaunayCellComplex( dcomplex, local_X, false );
+//   if ( ! ok )
+//     trace.error() << "Input set of points is not full dimensional." << std::endl;
+  
+//   dcomplex.requireFaceGeometry();
+//   // Filter cells
+//   std::vector< bool > is_cell_tangent( dcomplex.nbCells(), false );
+//   if ( remove_empty_cells )
+//     for ( Index c = 0; c < dcomplex.nbCells(); ++c )
+//       {
+//         auto Y = dcomplex.cellVertexPositions( c );
+//         auto P = dconv.makePolytope( Y );
+//         if ( P.countUpTo( Y.size()+1 ) >= Y.size()+1 ) continue;
+//         is_cell_tangent[ c ] = dconv.isFullySubconvex( P, outer_LS );
+//       }
+//   else
+//     for ( Index c = 0; c < dcomplex.nbCells(); ++c )
+//       {
+//       	auto Y = dcomplex.cellVertexPositions( c );
+//         is_cell_tangent[ c ] = dconv.isFullySubconvex( Y, outer_LS );
+//       }
+//   // Get faces
+//   std::vector< std::vector<SH3::SurfaceMesh::Vertex> > del_faces;
+//   for ( Index f = 0; f < dcomplex.nbFaces(); ++f )
+//     {
+//       auto f0 = std::make_pair( f, false );
+//       auto c0 = dcomplex.faceCell( f0 );
+//       auto f1 = dcomplex.opposite( f0 );
+//       auto c1 = dcomplex.faceCell( f1 );
+//       if ( dcomplex.isInfinite( c0 ) )
+//         {
+//           std::swap( f0, f1 );
+//           std::swap( c0, c1 );
+//         }
+//       bool bdry =
+//         ( is_cell_tangent[ c0 ] && ( dcomplex.isInfinite( c1 )
+//                                      || ( ! is_cell_tangent[ c1 ] ) ) )
+//         ||
+//         ( ! is_cell_tangent[ c0 ] && ( ! dcomplex.isInfinite( c1 )
+//                                        && ( is_cell_tangent[ c1 ] ) ) );
+//       if ( ! bdry ) continue;
+//       std::vector< Point > X = dcomplex.faceVertexPositions( f0 );
+//       const auto triangle_cells = dconv.StarCvxH( X, outer_LS.axis() );
+//       //if ( LS.includes( triangle_cells ) ) // tangent to shape
+//       updateOuterReconstructionFromCells( X, triangle_cells.toPointRange() );
+//     }
+// }
 
 ///////////////////////////////////////////////////////////////////////////////
 void computeLocalTangentDelaunayComplex( int vertex_idx)
@@ -994,7 +1182,7 @@ void computeGlobalTangentDelaunayComplex()
       const auto cells = dconv.StarCvxH( X, axis );
       // std::cout << "(" << f.first << "," << f.second << ") "
       //           << " #X=" << X.size() << " #cells=" << cells.size() << std::endl;
-      updateReconstructionFromCells( X, cells.toPointRange() );
+      ptrReco->updateReconstructionFromCells( X, cells.toPointRange() );
     }
   trace.endBlock();
       
@@ -1037,11 +1225,11 @@ void myCallback()
     {
       computeGlobalTangentDelaunayComplex();
     }
-  if (ImGui::Button("Compute tangent cone"))
-    {
-      computeTangentCone( pickPoint() );
-      current--;
-    }
+  // if (ImGui::Button("Compute tangent cone"))
+  //   {
+  //     computeTangentCone( pickPoint() );
+  //     current--;
+  //   }
   if (ImGui::Button("Compute local Delaunay complex"))
     {
       computeLocalTangentDelaunayComplex( pickPoint() );
@@ -1049,19 +1237,6 @@ void myCallback()
     }
   ImGui::Checkbox( "Remove empty cells", &remove_empty_cells );
   ImGui::Checkbox( "Check local tangency", &local_tangency );
-  if (ImGui::Button("Compute planes"))
-    computePlanes();
-  if (ImGui::Button("Compute reconstructions from triangles"))
-    { // todo
-      trace.beginBlock( "Compute reconstruction" );
-      for ( int i = 0; i < nb_cones; ++i )
-        {
-          trace.progressBar( (double) i, (double) nb_cones );
-          updateReconstructionFromTangentConeTriangles( pickPoint() );
-        }
-      displayReconstruction();
-      Time = trace.endBlock();
-    }
   if (ImGui::Button("Compute reconstruction from local Delaunay cplx"))
     { // todo
       trace.beginBlock( "Compute reconstruction" );
@@ -1076,34 +1251,66 @@ void myCallback()
       displayReconstruction();
       Time = trace.endBlock();
     }
-  if (ImGui::Button("Compute outer reconstruction from local Delaunay cplx"))
-    { // todo
-      trace.beginBlock( "Compute outer reconstruction" );
-      for ( int i = 0; i < nb_cones; ++i )
-        {
-          trace.progressBar( (double) i, (double) nb_cones );
-          updateOuterReconstructionFromLocalTangentDelaunayComplex( pickOuterPoint() );
-        }
-      displayOuterReconstruction();
-      Time = trace.endBlock();
-    }
-  if (ImGui::Button("Compute reconstructions from lines"))
+  if (ImGui::Button("Compute reconstruction from local Delaunay cplx (Sym sep)"))
     { // todo
       trace.beginBlock( "Compute reconstruction" );
       for ( int i = 0; i < nb_cones; ++i )
         {
           trace.progressBar( (double) i, (double) nb_cones );
-          updateReconstructionFromTangentConeLines( pickPoint() );
+          auto j = pickPrimalCell();
+          //if ( ! useless_points.count( digital_points[ j ] ) )
+          updateReconstructionFromLocalTangentDelaunayComplexSymSep( j );
+          if ( current_primal_cell == 0 ) break;
         }
       displayReconstruction();
       Time = trace.endBlock();
     }
-  ImGui::SliderInt("Nb cones for reconstruction", &nb_cones, 1, 100);
+  ImGui::Checkbox( "Use fast symmetric separator", &use_fastsymsep );
+  ImGui::Checkbox( "Use only local convex hull vertices", &use_cvxhullvtx );
+  ImGui::Text( "#PCells = %ld, #P = %ld, #Planes = %d",
+               primal_cells.size(), current_primal_cell, ptrReco->planes.size() );
+  // JOL: Removing outer tangent delaunay complex, not very useful for now.
+  // if (ImGui::Button("Compute outer reconstruction from local Delaunay cplx"))
+  //   { // todo
+  //     trace.beginBlock( "Compute outer reconstruction" );
+  //     for ( int i = 0; i < nb_cones; ++i )
+  //       {
+  //         trace.progressBar( (double) i, (double) nb_cones );
+  //         updateOuterReconstructionFromLocalTangentDelaunayComplex( pickOuterPoint() );
+  //       }
+  //     displayOuterReconstruction();
+  //     Time = trace.endBlock();
+  //   }
+  if (ImGui::Button("Compute planes"))
+    computePlanes();
+  // if (ImGui::Button("Compute reconstructions from triangles"))
+  //   { // todo
+  //     trace.beginBlock( "Compute reconstruction" );
+  //     for ( int i = 0; i < nb_cones; ++i )
+  //       {
+  //         trace.progressBar( (double) i, (double) nb_cones );
+  //         updateReconstructionFromTangentConeTriangles( pickPoint() );
+  //       }
+  //     displayReconstruction();
+  //     Time = trace.endBlock();
+  //   }
+  // if (ImGui::Button("Compute reconstructions from lines"))
+  //   { // todo
+  //     trace.beginBlock( "Compute reconstruction" );
+  //     for ( int i = 0; i < nb_cones; ++i )
+  //       {
+  //         trace.progressBar( (double) i, (double) nb_cones );
+  //         updateReconstructionFromTangentConeLines( pickPoint() );
+  //       }
+  //     displayReconstruction();
+  //     Time = trace.endBlock();
+  //   }
+  ImGui::SliderInt("Nb iterations for reconstruction", &nb_cones, 1, 100);
   ImGui::Text( "Computation time = %f ms", Time );
   ImGui::Text( "#X = %ld, #P = %ld, #U = %ld",
                digital_points.size(), current, useless_points.size() );
-  if (ImGui::Button("Mid reconstructions"))
-    displayMidReconstruction();
+  // if (ImGui::Button("Mid reconstructions"))
+  //   displayMidReconstruction();
   if (ImGui::Button("Remaining points"))
     displayRemainingPoints();
 }
@@ -1152,16 +1359,37 @@ int main( int argc, char* argv[] )
   for ( Size i = 0; i < surfels.size(); i++ )
     surfel2idx[ K.sKCoords( surfels[ i ] ) ] = i;
   // compute inner points
-  std::set< Point > I;
-  for ( auto s : surfels )  I.insert( K.interiorVoxel( s ) );
-  digital_points = std::vector<Point>( I.cbegin(), I.cend() );
+  std::set<Point> cell_coords;
+  for ( auto s : surfels ) {
+    Point voxel = K.interiorVoxel( s );
+    immInterior.insert( voxel );
+    Dimension k = K.sOrthDir( s );
+    auto     l0 = K.sIncident( s, (k+1)%3, false );
+    auto     l1 = K.sIncident( s, (k+1)%3, true );
+    auto    l0b = K.sIncident( s, (k+2)%3, false );
+    auto    l1b = K.sIncident( s, (k+2)%3, true );
+    auto    p00 = K.sIncident( l0, (k+2)%3, false );
+    auto    p01 = K.sIncident( l0, (k+2)%3, true );
+    auto    p10 = K.sIncident( l1, (k+2)%3, false );
+    auto    p11 = K.sIncident( l1, (k+2)%3, true );
+    cell_coords.insert( K.sKCoords( s ) );
+    cell_coords.insert( K.sKCoords( l0 ) );
+    cell_coords.insert( K.sKCoords( l1 ) );
+    cell_coords.insert( K.sKCoords( l0b ) );
+    cell_coords.insert( K.sKCoords( l1b ) );
+    cell_coords.insert( K.sKCoords( p00 ) );
+    cell_coords.insert( K.sKCoords( p01 ) );
+    cell_coords.insert( K.sKCoords( p10 ) );
+    cell_coords.insert( K.sKCoords( p11 ) );
+  }
+  primal_cells   = std::vector<Point>( cell_coords.cbegin(), cell_coords.cend() );
+  digital_points = std::vector<Point>( immInterior.cbegin(), immInterior.cend() );
   // compute outer points
-  std::set< Point > O;
-  for ( auto s : surfels )  O.insert( K.exteriorVoxel( s ) );
-  outer_digital_points = std::vector<Point>( O.cbegin(), O.cend() );
+  for ( auto s : surfels )  immExterior.insert( K.exteriorVoxel( s ) );
+  outer_digital_points = std::vector<Point>( immExterior.cbegin(), immExterior.cend() );
   // initializa intercepts
   intercepts       = std::vector< double >( surfels.size(), 0.0 );
-  outer_intercepts = std::vector< double >( surfels.size(), 0.0 );
+  // outer_intercepts = std::vector< double >( surfels.size(), 0.0 );
   auto primalSurface   = SH3::makePrimalSurfaceMesh(surface);
   SH3::Surfel2Index s2i;
   auto dualSurface     = SH3::makeDualPolygonalSurface( s2i, surface );  
@@ -1178,24 +1406,27 @@ int main( int argc, char* argv[] )
                       positions.end(),
                       faces.begin(),
                       faces.end());
-  for(auto face= 0 ; face < dualSurface->nbFaces(); ++face)
-    dual_faces.push_back( dualSurface->verticesAroundFace( face ));
+  // for(auto face= 0 ; face < dualSurface->nbFaces(); ++face)
+  //   dual_faces.push_back( dualSurface->verticesAroundFace( face ));
     
-    //Recasting to vector of vertices
-  for ( auto vtx = 0; vtx < dualSurface->nbVertices(); ++vtx )
-    dual_positions.push_back( dualSurface->position( vtx ) );
+  //   //Recasting to vector of vertices
+  // for ( auto vtx = 0; vtx < dualSurface->nbVertices(); ++vtx )
+  //   dual_positions.push_back( dualSurface->position( vtx ) );
     
-  dual_surfmesh = SurfMesh(dual_positions.begin(),
-                           dual_positions.end(),
-                           dual_faces.begin(),
-                           dual_faces.end());
-  outer_dual_faces     = dual_faces;
-  outer_dual_positions = dual_positions;
-  outer_dual_surfmesh = SurfMesh(outer_dual_positions.begin(),
-                                 outer_dual_positions.end(),
-                                 outer_dual_faces.begin(),
-                                 outer_dual_faces.end());
+  // dual_surfmesh = SurfMesh(dual_positions.begin(),
+  //                          dual_positions.end(),
+  //                          dual_faces.begin(),
+  //                          dual_faces.end());
+  // outer_dual_faces     = dual_faces;
+  // outer_dual_positions = dual_positions;
+  // outer_dual_surfmesh = SurfMesh(outer_dual_positions.begin(),
+  //                                outer_dual_positions.end(),
+  //                                outer_dual_faces.begin(),
+  //                                outer_dual_faces.end());
   std::cout << surfmesh << std::endl;
+
+  ptrReco = new DualReconstruction< KSpace >( K, dualSurface, surfels, surfel2idx );
+                                        
   // Make digital surface
   // digitizePointels( positions, digital_points );
   trace.info() << "Inner points has " << digital_points.size() << " points." << std::endl;
@@ -1203,23 +1434,23 @@ int main( int argc, char* argv[] )
   dconv = DGtal::DigitalConvexity< KSpace >( K );
   TC    = DGtal::TangencyComputer< KSpace >( K );
   TC.init( digital_points.cbegin(), digital_points.cend() );
-  outer_TC    = DGtal::TangencyComputer< KSpace >( K );
-  outer_TC.init( outer_digital_points.cbegin(), outer_digital_points.cend() );
+  // outer_TC    = DGtal::TangencyComputer< KSpace >( K );
+  // outer_TC.init( outer_digital_points.cbegin(), outer_digital_points.cend() );
   trace.info() << "#cell_cover = " << TC.cellCover().nbCells() << std::endl;
-  trace.info() << "#outer_cell_cover = " << outer_TC.cellCover().nbCells() << std::endl;
+  // trace.info() << "#outer_cell_cover = " << outer_TC.cellCover().nbCells() << std::endl;
   LS    = DGtal::LatticeSetByIntervals< Space >
     ( digital_points.cbegin(), digital_points.cend(), 0 ).starOfPoints();
   trace.info() << "#lattice_cover = " << LS.size() << std::endl;
-  outer_LS    = DGtal::LatticeSetByIntervals< Space >
-    ( outer_digital_points.cbegin(), outer_digital_points.cend(), 0 ).starOfPoints();
-  trace.info() << "#outer_lattice_cover = " << outer_LS.size() << std::endl;
+  // outer_LS    = DGtal::LatticeSetByIntervals< Space >
+  //   ( outer_digital_points.cbegin(), outer_digital_points.cend(), 0 ).starOfPoints();
+  // trace.info() << "#outer_lattice_cover = " << outer_LS.size() << std::endl;
   
   // Initialize polyscope
   polyscope::init();
 
   psMesh = polyscope::registerSurfaceMesh("Input surface", positions, faces);
   displayReconstruction();
-  displayOuterReconstruction();
+  // displayOuterReconstruction();
   // psDualMesh = polyscope::registerSurfaceMesh("Input dual surface", dual_positions, dual_faces);
 
   

@@ -56,11 +56,13 @@ typedef SurfMesh::Face                        Face;
 typedef SurfMesh::Vertex                      Vertex;
 typedef DGtal::ConvexHullIntegralKernel< 3 > Kernel3D;
 typedef DGtal::QuickHull< Kernel3D >         QuickHull3D;
+typedef QuickHull3D::IndexRange              IndexRange;
 
 //Polyscope global
 polyscope::SurfaceMesh *psMesh;
 polyscope::SurfaceMesh *psDualMesh;
 polyscope::SurfaceMesh *psTriangle;
+polyscope::SurfaceMesh *psDisks;
 polyscope::PointCloud*  psCloud;
 polyscope::PointCloud*  psCloudCvx;
 SurfMesh surfmesh;
@@ -70,11 +72,15 @@ int   vertex_idx = -1;
 int   face_idx   = -1;
 int   edge_idx   = -1;
 float Time = 0.0;
+int   MinNbPoints = 10;
 bool  is_selected = false;
 Point selected_kpoint; // valid if selection == true
-bool  PSym = false;
-bool  enforceFC = true;
+bool  PSym = true;
+bool  enforceFC = false;
+bool  filterTB = true;
+bool  fastSymSep = false;
 std::vector< Point >     digital_points;
+std::vector< Point >     cell_points; // cell as Khalimsky coordinates.
 KSpace K;
 DGtal::DigitalConvexity< KSpace > dconv;
 DGtal::TangencyComputer< KSpace > TC;
@@ -95,6 +101,24 @@ struct UnorderedPointSetPredicate
 };
 
 std::unordered_set< Point > unorderedSet;
+std::unordered_set< Point > immInterior;
+std::unordered_set< Point > immExterior;
+
+
+struct BinaryImagePredicate
+{
+  typedef DGtal::Z3i::Point Point;
+  typedef DGtal::Z3i::Domain Domain;
+  typedef DGtal::ImageContainerBySTLVector<Domain, bool> BinaryImage;
+  DGtal::CountedPtr<BinaryImage> myImage;
+  Domain myDomain;
+  explicit BinaryImagePredicate( DGtal::CountedPtr<BinaryImage> PtrI )
+    : myImage( PtrI ), myDomain( PtrI->domain() ) {}
+  bool operator()( const Point& p ) const
+  { return myDomain.isInside( p ) && (*myImage)( p ); }
+};
+
+BinaryImagePredicate* ptrImagePredicate;
 
 // ----------------------------------------------------------------------
 // utilities pointel
@@ -111,7 +135,19 @@ RealPoint pointelPoint2RealPoint( Point q )
                     gridstep * ( q[ 1 ] - 0.5 ),
                     gridstep * ( q[ 2 ] - 0.5 ) );
 }
+RealPoint pointelPoint2RealPoint( RealPoint q )
+{
+  return RealPoint( gridstep * ( q[ 0 ] - 0.5 ),
+                    gridstep * ( q[ 1 ] - 0.5 ),
+                    gridstep * ( q[ 2 ] - 0.5 ) );
+}
 void embedPointels( const std::vector< Point >& vq, std::vector< RealPoint >& vp )
+{
+  vp.resize( vq.size() );
+  for ( auto i = 0; i < vp.size(); ++i )
+    vp[ i ] = pointelPoint2RealPoint( vq[ i ] );
+}
+void embedPointels( const std::vector< RealPoint >& vq, std::vector< RealPoint >& vp )
 {
   vp.resize( vq.size() );
   for ( auto i = 0; i < vp.size(); ++i )
@@ -297,6 +333,10 @@ void computeTangentCone()
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// SYMMETRIC CONVEX SET
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 void computeSymmetricConvexSet()
 {
   if ( digital_points.empty() ) return;
@@ -313,12 +353,134 @@ void computeSymmetricConvexSet()
       break;
   std::cout << "#symcvx=" << SCE.myPoints.size() << std::endl;
   Time = trace.endBlock();
+  // Display as point cloud.
   std::vector< Point > positions( SCE.myPoints.cbegin(), SCE.myPoints.cend() );
   std::vector< RealPoint > emb_positions;
   embedPointels( positions, emb_positions );
   psCloud = polyscope::registerPointCloud( "Symmetric convex set", emb_positions );
   psCloud->setPointRadius( gridstep / 100.0 );
+  // Display as disk
+  PerfectSymmetricSet< Space > symset;
+  bool ok = symset.init( SCE.kCenter(), SCE.myPerfectSymmetryRadius,
+                         SCE.myPoints.cbegin(), SCE.myPoints.cend(), true );
+  trace.info() << "Symmetric set is " << ( ok ? "OK" : "ERROR" ) << std::endl;
+  std::vector< RealPoint > disks_positions;
+  std::vector< RealPoint > embedded_disks_positions;
+  std::vector<std::vector<std::size_t> > disks_faces;
+  int index = 0;
+  symset.addEllipse( index, disks_positions, disks_faces, 18 );
+  embedPointels( disks_positions, embedded_disks_positions );
+  psDisks = polyscope::registerSurfaceMesh( "Tangent ellipses",
+                                            embedded_disks_positions, disks_faces );
+  
 }
+
+void computeAllSymmetricConvexSet()
+{
+  if ( digital_points.empty() ) return;
+  PerfectSymmetricTangentBundle< Space > TB;
+  
+  trace.beginBlock( "Compute all symmetric convex set" );
+  Point lo = Point::diagonal(-10000);
+  Point up = Point::diagonal( 10000);
+  UnorderedPointSetPredicate predS( unorderedSet );
+  for ( auto i = 0; i < cell_points.size(); i++ )
+    {
+      SymmetricConvexExpander< KSpace, UnorderedPointSetPredicate > SCE
+        ( predS, cell_points[ i ], lo, up );
+      while ( SCE.advance( enforceFC ) )
+        if ( PSym && ! SCE.myPerfectSymmetry 
+             && SCE.current().second >= SCE.myPerfectSymmetryRadius )
+          break;
+      PerfectSymmetricSet< Space > symset;
+      if ( SCE.myPoints.size() >= MinNbPoints )
+        {
+          bool ok = symset.init( SCE.kCenter(), SCE.myPerfectSymmetryRadius,
+                                 SCE.myPoints.cbegin(), SCE.myPoints.cend(), true );
+          // Add to tangent bundle.
+          if ( ok ) TB.add( symset, filterTB );
+        }
+      if ( i % 1000 == 0 )
+        std::cout << i << "/" << cell_points.size()
+                  << " #TB=" << TB.tangent_sets.size() << std::endl;
+    }
+  std::cout << "#TB=" << TB.tangent_sets.size() << std::endl;
+  Time = trace.endBlock();
+  // Display as disk
+  std::vector< double >    eccentricities;
+  std::vector< RealPoint > disks_positions;
+  std::vector< RealPoint > embedded_disks_positions;
+  std::vector<std::vector<std::size_t> > disks_faces;
+  TB.addEllipses( disks_positions, disks_faces, eccentricities, 0, 18 );
+  embedPointels( disks_positions, embedded_disks_positions );
+  psDisks = polyscope::registerSurfaceMesh( "Tangent disks",
+                                            embedded_disks_positions, disks_faces );
+  psDisks->addFaceScalarQuantity("eccentricities", eccentricities);
+}
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// SYMMETRIC SEPARATOR
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+void computeSymmetricSeparator()
+{
+  if ( digital_points.empty() ) return;
+  if ( ! is_selected ) return;
+  trace.beginBlock( "Compute symmetric convex set" );
+  //SymmetricSeparator< KSpace, BinaryImagePredicate > SS( *ptrImagePredicate );
+  UnorderedPointSetPredicate iinterior( immInterior );
+  UnorderedPointSetPredicate iexterior( immExterior );
+  SymmetricSeparator< KSpace,
+                      UnorderedPointSetPredicate,
+                      UnorderedPointSetPredicate > SS( iinterior, iexterior );
+  bool ok = SS.init( selected_kpoint );
+  while ( ok ) ok = fastSymSep ? SS.advanceFast() : SS.advance();
+  std::cout << "#symsep=" << SS.myPoints.size() << std::endl;
+  Time = trace.endBlock();
+  // Display as point cloud.
+  std::vector< Point > positions( SS.myPoints.cbegin(), SS.myPoints.cend() );
+  std::vector< RealPoint > emb_positions;
+  embedVoxels( positions, emb_positions );
+  psCloud = polyscope::registerPointCloud( "Symmetric separator set", emb_positions );
+  psCloud->setPointRadius( gridstep / 100.0 );
+  //std::cout << "Sym=" << SS.kCenter() << std::endl;
+  //std::cout << "In: ";
+  //for ( auto p : positions ) std::cout << " " << p;
+  for ( auto& p : positions ) p = SS.symmetric( p );
+  //std::cout << std::endl << "Out:";
+  //for ( auto p : positions ) std::cout << " " << p;
+  //std::cout << std::endl;
+  emb_positions.clear();
+  embedVoxels( positions, emb_positions );
+  psCloud = polyscope::registerPointCloud( "Symmetric separator out set", emb_positions );
+  psCloud->setPointRadius( gridstep / 100.0 );
+  // Display as point cloud.
+  positions = std::vector< Point >( SS.myActive.cbegin(), SS.myActive.cend() );
+  emb_positions.clear();
+  embedVoxels( positions, emb_positions );
+  psCloud = polyscope::registerPointCloud( "Active points", emb_positions );
+  psCloud->setPointRadius( gridstep / 100.0 );
+
+  QuickHull3D hull;
+  hull.setInput( positions, false );
+  hull.computeConvexHull();
+  std::cout << hull << std::endl;
+  std::vector< Point > hull_positions;
+  hull.getVertexPositions( hull_positions );
+  std::vector< IndexRange > hull_facet_vertices;
+  bool ok2 = hull.getFacetVertices( hull_facet_vertices );
+  if ( ! ok2 ) trace.error() << "Bad facet computation" << std::endl;
+  polyscope::registerSurfaceMesh("Separator hull", hull_positions, hull_facet_vertices );
+  // todo
+}
+
+
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
+// TRIANGLES
+///////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////
 
 struct TriangleContext
 {
@@ -504,10 +666,17 @@ void myCallback()
   }
   if (ImGui::Button("Compute tangent cone"))
     computeTangentCone();
+  if (ImGui::Button("Compute symmetric separator"))
+    computeSymmetricSeparator();
+  ImGui::Checkbox("Fast symmetric separator", &fastSymSep );
   if (ImGui::Button("Compute symmetric convex set"))
     computeSymmetricConvexSet();
   ImGui::Checkbox("Perfect symmetry", &PSym );
   ImGui::Checkbox("Full convexity", &enforceFC );
+  if (ImGui::Button("Compute all symmetric convex set"))
+    computeAllSymmetricConvexSet();
+  ImGui::SliderInt("#min points for symmetric set", &MinNbPoints, 5, 1000);
+  ImGui::Checkbox("filter tangent bundle", &filterTB );
   if (ImGui::Button("Compute great triangle"))
     computeGreatTriangle();
   if (ImGui::Button("Compute planes"))
@@ -524,9 +693,13 @@ int main( int argc, char* argv[] )
   auto binary_image    = SH3::makeBinaryImage(filename, params );
   K                    = SH3::getKSpace( binary_image, params );
   auto surface         = SH3::makeDigitalSurface( binary_image, K, params );
+  auto surfels         = SH3::getSurfelRange( surface, params );
   auto primalSurface   = SH3::makePrimalSurfaceMesh(surface);
   SH3::Surfel2Index s2i;
   auto dualSurface     = SH3::makeDualPolygonalSurface( s2i, surface );  
+
+  ptrImagePredicate = new BinaryImagePredicate( binary_image );
+  
   //Need to convert the faces
   std::vector<std::vector<SH3::SurfaceMesh::Vertex>> faces;
   std::vector<RealPoint> positions;
@@ -570,9 +743,45 @@ int main( int argc, char* argv[] )
   trace.info() << "#cell_cover = " << TC.cellCover().nbCells() << std::endl;
   trace.info() << "#lattice_cover = " << LS.size() << std::endl;
 
+  // Compute all cell points
+  typedef Z3i::Cell Cell;
+  std::set< Point > all_cells;
+  for ( auto&& s : surfels )
+    {
+      const Cell us  = K.unsigns( s );
+      const auto k   = K.uOrthDir( us );
+      const Cell l0  = K.uIncident( us, (k+1)%3, false );
+      const Cell l1  = K.uIncident( us, (k+1)%3, true );
+      const Cell p00 = K.uIncident( l0, (k+2)%3, false );
+      const Cell p01 = K.uIncident( l0, (k+2)%3, true );
+      const Cell p10 = K.uIncident( l1, (k+2)%3, false );
+      const Cell p11 = K.uIncident( l1, (k+2)%3, true );
+      all_cells.insert( K.uKCoords( us ) );
+      all_cells.insert( K.uKCoords( l0 ) );
+      all_cells.insert( K.uKCoords( l1 ) );
+      all_cells.insert( K.uKCoords( p00 ) );
+      all_cells.insert( K.uKCoords( p01 ) );
+      all_cells.insert( K.uKCoords( p10 ) );
+      all_cells.insert( K.uKCoords( p11 ) );
+    }
+  cell_points = std::vector< Point >( all_cells.cbegin(), all_cells.cend() );
+  all_cells.clear();
+  std::cout << "Number of primal cells = " << cell_points.size() << std::endl;
+  
   // Make predicate for pointel-based digital surface
   unorderedSet = std::unordered_set< Point >( digital_points.cbegin(),
                                               digital_points.cend() );
+
+  // Prepare predicate for voxel based digital surface analysis
+  for ( auto&& s : surfels )
+    {
+      const auto k       = K.sOrthDir( s );
+      const auto direct  = K.sDirect( s, k );
+      const auto int_vox  = K.sIncident( s, k, direct );
+      const auto ext_vox = K.sIncident( s, k, ! direct );
+      immInterior.insert( K.sCoords( int_vox ) );
+      immExterior.insert( K.sCoords( ext_vox ) );
+    }
   
   // Initialize polyscope
   polyscope::init();

@@ -656,7 +656,7 @@ public:
   DenseMatrix shapeOperator(const Face f) const
   {
     DenseMatrix N(myFaceDegree[f],3);
-    uint cpt = 0;
+    std::size_t cpt = 0;
     for (Vertex v : mySurfaceMesh->incidentVertices(f))
     {
       N.block(cpt,0,3,1) = n_v(v).transpose();
