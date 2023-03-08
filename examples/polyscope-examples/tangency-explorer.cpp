@@ -33,6 +33,7 @@
 #include "DGtal/geometry/tools/QuickHull.h"
 #include "DGtal/geometry/surfaces/estimation/PlaneProbingTetrahedronEstimator.h"
 #include "SymmetricConvexExpander.h"
+#include "SymmetricSeparator.h"
 
 #include "polyscope/pick.h"
 #include <polyscope/polyscope.h>
@@ -63,6 +64,7 @@ polyscope::SurfaceMesh *psMesh;
 polyscope::SurfaceMesh *psDualMesh;
 polyscope::SurfaceMesh *psTriangle;
 polyscope::SurfaceMesh *psDisks;
+polyscope::SurfaceMesh *psSeps;
 polyscope::PointCloud*  psCloud;
 polyscope::PointCloud*  psCloudCvx;
 SurfMesh surfmesh;
@@ -78,7 +80,11 @@ Point selected_kpoint; // valid if selection == true
 bool  PSym = true;
 bool  enforceFC = false;
 bool  filterTB = true;
-bool  fastSymSep = false;
+bool  fastSymSep  = false;
+bool  onlySurfels = false;
+float Thickness = 0.0;
+float maxThickness = 2.0;
+
 std::vector< Point >     digital_points;
 std::vector< Point >     cell_points; // cell as Khalimsky coordinates.
 KSpace K;
@@ -462,18 +468,119 @@ void computeSymmetricSeparator()
   psCloud = polyscope::registerPointCloud( "Active points", emb_positions );
   psCloud->setPointRadius( gridstep / 100.0 );
 
-  QuickHull3D hull;
-  hull.setInput( positions, false );
-  hull.computeConvexHull();
-  std::cout << hull << std::endl;
-  std::vector< Point > hull_positions;
-  hull.getVertexPositions( hull_positions );
-  std::vector< IndexRange > hull_facet_vertices;
-  bool ok2 = hull.getFacetVertices( hull_facet_vertices );
-  if ( ! ok2 ) trace.error() << "Bad facet computation" << std::endl;
-  polyscope::registerSurfaceMesh("Separator hull", hull_positions, hull_facet_vertices );
-  // todo
+  // QuickHull3D hull;
+  // hull.setInput( positions, false );
+  // hull.computeConvexHull();
+  // std::cout << hull << std::endl;
+  // std::vector< Point > hull_positions;
+  // hull.getVertexPositions( hull_positions );
+  // std::vector< IndexRange > hull_facet_vertices;
+  // bool ok2 = hull.getFacetVertices( hull_facet_vertices );
+  // if ( ! ok2 ) trace.error() << "Bad facet computation" << std::endl;
+  // polyscope::registerSurfaceMesh("Separator hull", hull_positions, hull_facet_vertices );
+
+  SymmetricSeparatorSet< Z3i::Space > SSS( SS.myKCenter, SS.myPoints.cbegin(), SS.myPoints.cend() );
+  std::vector< RealPoint >  sandwich_positions;
+  std::vector< IndexRange > sandwich_facet_vertices;
+  Index idx = 0;
+  if ( SSS.isValid() )
+    {
+      SSS.addSeparator( idx, sandwich_positions, sandwich_facet_vertices );
+      polyscope::registerSurfaceMesh("Sandwich", sandwich_positions, sandwich_facet_vertices );
+    }
+  bool ok4 = SSS.check();
+  SSS.selfDisplay( std::cout );
+  std::cout << ( ok4 ? " OK" : " ERROR" ) << std::endl;
+  Thickness = SSS.thickness();
+  // std::vector< Point > X( SS.myPoints.cbegin(), SS.myPoints.cend() );
+  // for ( auto p : SS.myPoints ) X.push_back( SS.symmetric( p ) );
+  // QuickHull3D hull;
+  // hull.setInput( X, false );
+  // hull.computeConvexHull();
+  // std::vector< Point > hull_positions;
+  // hull.getVertexPositions( hull_positions );
+  // std::vector< IndexRange > hull_facet_vertices;
+  // bool ok2 = hull.getFacetVertices( hull_facet_vertices );
+  // if ( ! ok2 ) trace.error() << "Bad facet computation" << std::endl;
+  // std::cout << hull << std::endl;
+  // // Look for smallest diameter
+  // typedef QuickHull3D::HalfSpace HalfSpace;
+  // std::vector< HalfSpace > facet_halfspaces;
+  // bool ok3 = hull.getFacetHalfSpaces( facet_halfspaces );
+  // if ( ! ok3 ) {
+  //   trace.error() << "Bad facet half-spaces computation" << std::endl;
+  //   return;
+  // }
+  // int best_i = -1;
+  // Scalar best_d = std::numeric_limits< Scalar >::infinity();
+  // for ( auto i = 0; i < facet_halfspaces.size(); i++ )
+  //   {
+  //     Point  s = SS.symmetric( hull_positions[ hull_facet_vertices[ i ][ 0 ] ] );
+  //     auto  FN = facet_halfspaces[ i ].internalNormal();
+  //     auto  Fc = facet_halfspaces[ i ].internalIntercept();
+  //     Scalar d = fabs( FN.dot( s ) - Fc );
+  //     d       /= FN.norm();
+  //     if  ( d < best_d ) { best_i = i; best_d = d; }
+  //   }
+  // const auto& fv = hull_facet_vertices[ best_i ];
+  // const auto  nb = fv.size();
+  // std::vector< RealPoint >  sandwich_positions( 2*nb );
+  // std::vector< IndexRange > sandwich_facet_vertices( 2 );
+  // sandwich_facet_vertices[ 0 ].resize( nb );
+  // sandwich_facet_vertices[ 1 ].resize( nb );
+  // for ( auto i = 0; i < nb; i++ )
+  //   {
+  //     const Point p = hull_positions[ fv[ i ] ];
+  //     const Point q = SS.symmetric( p );
+  //     sandwich_positions     [ i ]      = voxelPoint2RealPoint( p );
+  //     sandwich_positions     [ nb + i ] = voxelPoint2RealPoint( q );
+  //     sandwich_facet_vertices[ 0 ][ i ] = i;
+  //     sandwich_facet_vertices[ 1 ][ i ] = nb + i;
+  //   }
+  // polyscope::registerSurfaceMesh("Sandwich", sandwich_positions, sandwich_facet_vertices );
+
 }
+
+void computeAllSymmetricSeparatorSet()
+{
+  if ( digital_points.empty() ) return;
+  SymmetricSeparatorBundle< Space > TB;
+  
+  trace.beginBlock( "Compute all symmetric separators" );
+  UnorderedPointSetPredicate iinterior( immInterior );
+  UnorderedPointSetPredicate iexterior( immExterior );
+  SymmetricSeparator< KSpace,
+                      UnorderedPointSetPredicate,
+                      UnorderedPointSetPredicate > SS( iinterior, iexterior );
+
+  for ( auto i = 0; i < cell_points.size(); i++ )
+    {
+      if ( onlySurfels && K.uDim( K.uCell( cell_points[ i ] ) ) != 2 ) continue;
+      // Compute Symmetric separator
+      bool ok = SS.init( cell_points[ i ] );
+      while ( ok ) ok = fastSymSep ? SS.advanceFast() : SS.advance();
+      // Compute its proxy
+      SymmetricSeparatorSet< Z3i::Space > SSS( SS.myKCenter,
+                                               SS.myPoints.cbegin(), SS.myPoints.cend() );
+      if ( SSS.isValid() && SSS.thickness() < maxThickness )
+        TB.add( SSS, filterTB );
+      if ( i % 1000 == 0 )
+        trace.info() << i << "/" << cell_points.size()
+                  << " #TB=" << TB.tangent_sets.size() << std::endl;
+    }
+  trace.info()<< "#TB=" << TB.tangent_sets.size() << std::endl;
+  Time = trace.endBlock();
+
+  // Display as separators
+  // std::vector< double >    eccentricities;
+  std::vector< RealPoint > seps_positions;
+  std::vector<std::vector<std::size_t> > seps_faces;
+  TB.addSeparators( seps_positions, seps_faces, 0 );
+  psSeps = polyscope::registerSurfaceMesh( "Tangent seps",
+                                            seps_positions, seps_faces );
+  // psSeps->addFaceScalarQuantity("eccentricities", eccentricities);
+}
+
 
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -669,6 +776,11 @@ void myCallback()
   if (ImGui::Button("Compute symmetric separator"))
     computeSymmetricSeparator();
   ImGui::Checkbox("Fast symmetric separator", &fastSymSep );
+  ImGui::Text( "Thickness = %f", Thickness );
+  if (ImGui::Button("Compute all symmetric separators"))
+    computeAllSymmetricSeparatorSet();
+  ImGui::Checkbox("Only surfels", &onlySurfels );  
+  ImGui::SliderFloat("#max thickness for symmetric set", &maxThickness, 0, 10.0);
   if (ImGui::Button("Compute symmetric convex set"))
     computeSymmetricConvexSet();
   ImGui::Checkbox("Perfect symmetry", &PSym );

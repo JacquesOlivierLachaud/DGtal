@@ -34,6 +34,7 @@
 #include <DGtal/geometry/tools/QuickHull.h>
 #include <DGtal/geometry/surfaces/estimation/PlaneProbingTetrahedronEstimator.h>
 #include "SymmetricConvexExpander.h"
+#include "SymmetricSeparator.h"
 
 #include <polyscope/pick.h>
 #include <polyscope/polyscope.h>
@@ -95,6 +96,8 @@ bool remove_empty_cells = false;
 bool local_tangency     = false;
 bool use_fastsymsep     = false;
 bool use_cvxhullvtx     = true;
+bool reco_primal        = false;
+float         epsilon   = 0.0001;
 
 Size current = 0;
 Size current_primal_cell = 0;
@@ -129,6 +132,9 @@ typedef double                Scalar;
 typedef std::vector< Scalar > Scalars;
 
 DualReconstruction< KSpace >* ptrReco = nullptr;
+std::vector<std::vector<SH3::SurfaceMesh::Vertex>> primal_faces;
+std::vector<RealPoint> primal_positions;
+std::vector< std::vector< Size > > primal_vertex_surfels;
 
 Size pickPoint()
 {
@@ -401,6 +407,17 @@ void displayReconstruction()
   psDualMesh = polyscope::registerSurfaceMesh("Reconstruction surface",
                                               ptrReco->dual_positions, ptrReco->dual_faces);
   psDualMesh->addVertexScalarQuantity("planes", ptrReco->plane_indices );
+  auto normals = ptrReco->getNormalVectors();
+  psDualMesh->addVertexVectorQuantity("normal vectors", normals );
+
+  auto planarities = ptrReco->getDualPlanarities();
+  psDualMesh->addFaceVectorQuantity("dual normal vectors", planarities.first );
+  psDualMesh->addFaceScalarQuantity("dual planarity", planarities.second );
+  std::cout  << "dual planarities computed" << std::endl;
+  
+  // auto lowerpts = ptrReco->getLowerPoints();
+  // auto    psLow = polyscope::registerPointCloud( "Lowestpoints", lowerpts );
+  // psLow->setPointRadius( gridstep / 300.0 );
   {
     std::vector< Point > X;
     for ( Size i = 0; i < current; i++ )
@@ -419,6 +436,34 @@ void displayReconstruction()
     psCloudProcCells = polyscope::registerPointCloud( "Processed cells", emb_X );
     psCloudProcCells->setPointRadius( gridstep / 600.0 );
   }
+  std::cout  << "process points displayed" << std::endl;
+  // Recompute primal positions.
+  auto reco_positions = primal_positions;
+  std::vector< double > reco_type( reco_positions.size() );
+  for ( int i = 0; i < reco_positions.size(); i++ )
+    {
+      int type;
+      auto p = ptrReco->pointelPosition( primal_positions[ i ], primal_vertex_surfels[ i ], type );
+      reco_positions[ i ] = p;
+      reco_type     [ i ] = type;
+    }
+  psMesh = polyscope::registerSurfaceMesh("Primal surface",
+                                          reco_primal ? reco_positions : primal_positions,
+                                          primal_faces);
+  // psDualMesh->addFaceScalarQuantity("type", reco_type );  
+  psMesh->addVertexScalarQuantity("type", reco_type );  
+  std::cout  << "primal surface computed" << std::endl;
+  auto exact_normals    = ptrReco->getExactNormalVectors();
+  auto exact_intercepts = ptrReco->getExactIntercepts();
+  psMesh->addFaceVectorQuantity("exact normal vectors", exact_normals );
+  psMesh->addFaceScalarQuantity("exact intercepts", exact_intercepts ); 
+  std::cout  << "exact normals and intercepts computed" << std::endl;
+}
+
+void segmentDualSurface()
+{ // segment surface
+  auto S = ptrReco->segmentDualSurface( epsilon );
+  psDualMesh->addFaceScalarQuantity("segmentation", S );
 }
 
 void displayRemainingPoints()
@@ -1205,7 +1250,7 @@ void myCallback()
     int idx = selection.second;
 
     // Only authorize selection on the input surface and the reconstruction
-    auto surf = polyscope::getSurfaceMesh("Input surface");
+    auto surf = polyscope::getSurfaceMesh("Reconstruction surface");
     goodSelection = goodSelection || (selectedSurface == surf);
     const auto nv = selectedSurface->nVertices(); 
     // Validate that it its a face index
@@ -1237,6 +1282,7 @@ void myCallback()
     }
   ImGui::Checkbox( "Remove empty cells", &remove_empty_cells );
   ImGui::Checkbox( "Check local tangency", &local_tangency );
+  ImGui::Checkbox( "Compute primal reconstruction", &reco_primal );
   if (ImGui::Button("Compute reconstruction from local Delaunay cplx"))
     { // todo
       trace.beginBlock( "Compute reconstruction" );
@@ -1306,6 +1352,10 @@ void myCallback()
   //     Time = trace.endBlock();
   //   }
   ImGui::SliderInt("Nb iterations for reconstruction", &nb_cones, 1, 100);
+  if (ImGui::Button("Segment dual surface"))
+    segmentDualSurface();
+  ImGui::SliderFloat("Epsilon for segmentation", &epsilon, 0.000001, 0.0001);
+
   ImGui::Text( "Computation time = %f ms", Time );
   ImGui::Text( "#X = %ld, #P = %ld, #U = %ld",
                digital_points.size(), current, useless_points.size() );
@@ -1394,18 +1444,16 @@ int main( int argc, char* argv[] )
   SH3::Surfel2Index s2i;
   auto dualSurface     = SH3::makeDualPolygonalSurface( s2i, surface );  
   //Need to convert the faces
-  std::vector<std::vector<SH3::SurfaceMesh::Vertex>> faces;
-  std::vector<RealPoint> positions;
   for(auto face= 0 ; face < primalSurface->nbFaces(); ++face)
-    faces.push_back(primalSurface->incidentVertices( face ));
+    primal_faces.push_back(primalSurface->incidentVertices( face ));
   
   //Recasting to vector of vertices
-  positions = primalSurface->positions();
+  primal_positions = primalSurface->positions();
   
-  surfmesh = SurfMesh(positions.begin(),
-                      positions.end(),
-                      faces.begin(),
-                      faces.end());
+  // surfmesh = SurfMesh(positions.begin(),
+  //                     positions.end(),
+  //                     faces.begin(),
+  //                     faces.end());
   // for(auto face= 0 ; face < dualSurface->nbFaces(); ++face)
   //   dual_faces.push_back( dualSurface->verticesAroundFace( face ));
     
@@ -1423,10 +1471,13 @@ int main( int argc, char* argv[] )
   //                                outer_dual_positions.end(),
   //                                outer_dual_faces.begin(),
   //                                outer_dual_faces.end());
-  std::cout << surfmesh << std::endl;
 
+  // Make main surfaces
   ptrReco = new DualReconstruction< KSpace >( K, dualSurface, surfels, surfel2idx );
-                                        
+  for(auto vertex= 0 ; vertex < primalSurface->nbVertices(); ++vertex )
+    primal_vertex_surfels.push_back( primalSurface->incidentFaces( vertex ) );
+
+  
   // Make digital surface
   // digitizePointels( positions, digital_points );
   trace.info() << "Inner points has " << digital_points.size() << " points." << std::endl;
@@ -1448,7 +1499,6 @@ int main( int argc, char* argv[] )
   // Initialize polyscope
   polyscope::init();
 
-  psMesh = polyscope::registerSurfaceMesh("Input surface", positions, faces);
   displayReconstruction();
   // displayOuterReconstruction();
   // psDualMesh = polyscope::registerSurfaceMesh("Input dual surface", dual_positions, dual_faces);

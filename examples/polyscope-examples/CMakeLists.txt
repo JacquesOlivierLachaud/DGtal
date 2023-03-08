@@ -41,6 +41,7 @@ set(POLYSCOPE_SRCS
   exampleBunnyHead
   tangency-explorer
   tangency-reconstruction
+  digital-shape-approx
 )
 
 foreach(FILE ${POLYSCOPE_SRCS})

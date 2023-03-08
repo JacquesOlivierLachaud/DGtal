@@ -441,6 +441,58 @@ struct PerfectSymmetricSet {
   }
 };
 
+//  Simplified version of PerfectSymmetricSet that computes only its PCA.
+template < typename TSpace >
+struct PCAPerfectSymmetricSet {
+  typedef TSpace                            Space;
+  typedef typename Space::Point             Point;
+  typedef typename Space::RealPoint         RealPoint;
+  typedef typename RealPoint::Coordinate    Scalar;
+  typedef typename Space::Integer           Integer;
+  typedef DGtal::int64_t                    InternalInteger;
+  typedef std::vector< std::size_t >        Indices;
+  typedef typename Space::RealVector        RealVector;
+  typedef DGtal::SimpleMatrix< double, 3, 3 > RealTensor;
+  
+  Point   myKCenter; ///< center with doubled coordinates
+  RealPoint myCenter; ///< center with real coordinates
+  RealTensor myPCA; ///< PCA tensor
+  RealVector myA;   ///< the greatest half-axis
+  RealVector myB;   ///< the smallest half-axis
+  RealVector myN;   ///< the normal direction (as a unit vector)
+  
+  PCAPerfectSymmetricSet() = default;
+
+  /// Initialise the set with a center and the range of points.
+  template <typename PointIterator>
+  void init( Point kcenter, PointIterator b, PointIterator e )
+  {
+    myKCenter = kcenter;
+    myCenter  = RealPoint( myKCenter[ 0 ], myKCenter[ 1 ], myKCenter[ 2 ] );
+    myCenter /= 2.0;
+    // Compute PCA
+    int n = 0;
+    for ( auto it = b ; it != e; it++, n++ )
+      {
+        auto v = (2 * (*it)) - kcenter;
+        for ( auto i = 0; i < 3; i++ )
+          for ( auto j = 0; j < 3; j++ )
+            myPCA( i, j ) += double( v[ i ] ) * double( v[ j ] );
+      }
+    myPCA /= 4.0 * double( n-1 );
+
+    // Diagonalize PCA
+    RealTensor V; // unit eigen vectors in columns V.column( 0 ) = normal vector
+    RealVector E; //  eigen values (smallest to highest).
+    DGtal::EigenDecomposition< 3, double >::getEigenDecomposition( myPCA, V, E );
+    myA = V.column( 2 ) * ( 2.0*sqrt( E[ 2 ] ) ); // great ellipse axis
+    myB = V.column( 1 ) * ( 2.0*sqrt( E[ 1 ] ) ); // small ellipse axis
+    myN = myA.crossProduct( myB ).getNormalized(); // normal direction (not oriented).
+  }
+  
+};
+
+
 template < typename TSpace >
 struct PerfectSymmetricTangentBundle {
   typedef TSpace                        Space;
@@ -497,266 +549,6 @@ struct PerfectSymmetricTangentBundle {
 };
 
 
-template < typename TKSpace,
-           typename TInteriorPointPredicate,
-           typename TExteriorPointPredicate >
-struct SymmetricSeparator
-{
-  BOOST_CONCEPT_ASSERT(( concepts::CCellularGridSpaceND< TKSpace > ));
- 
-  public:
-  typedef SymmetricSeparator<TKSpace,TInteriorPointPredicate,TExteriorPointPredicate> Self;
-  typedef TKSpace                         KSpace;
-  typedef TInteriorPointPredicate         InteriorPointPredicate;
-  typedef TExteriorPointPredicate         ExteriorPointPredicate;
-  typedef typename KSpace::Integer        Integer;
-  typedef typename KSpace::Point          Point;
-  typedef typename KSpace::Vector         Vector;
-  typedef typename KSpace::Space          Space;
-  typedef std::size_t                     Size;
-  typedef std::vector<Point>              PointRange;
-  typedef std::vector<Vector>             VectorRange;
-  typedef std::unordered_set<Point>       PointSet;
-    
-  static const Dimension dimension = KSpace::dimension;
-
-  // typedef std::pair< Point, Integer >     Node;
-
-  // // Inversion order since priority queue output max element.
-  // struct NodeComparator {
-  //   /// Default constructor. 
-  //   NodeComparator() = default;
-  //   // p < q iff p.second < q.second
-  //   bool operator()( const Node& p, const Node& q ) const
-  //   {
-  //     return p.second > q.second;
-  //   }
-  // };
-
-  // typedef std::priority_queue< Node, std::vector<Node>, NodeComparator > Queue;
-
-  // ------------------------ public data -----------------------------
-public:
-  Vector myOne; ///< vector (1,...,1) for shifting voxel coordinates.
-  Point myKCenter; ///< the center of symmetry (in doubled coordinates)
-  const InteriorPointPredicate* myIntPredicate; ///< the predicate that defines the digital set (immediate interior)
-  const ExteriorPointPredicate* myExtPredicate; ///< the predicate that defines outside the digital set (immediate exterior).
-  bool  mySeparating; ///< if false then the object is invalid.
-  bool  myExpansion;  ///< force expansion
-  // Queue myQ; ///< the queue of points to process
-  PointSet myActive; ///< active points defining "uppermost" vectors.
-  PointSet myPoints; ///< Symmetric range of lattice points, sorted.
-  PointSet myM; ///< Marked points, i.e. points already in the queue or in the object.
-  
-  /// Constructor from predicate and symmetry center point.
-  SymmetricSeparator( const InteriorPointPredicate& immediate_int_predicate,
-                      const ExteriorPointPredicate& immediate_ext_predicate,
-                      bool expansion = true )
-    : myIntPredicate( &immediate_int_predicate ),
-      myExtPredicate( &immediate_ext_predicate ),
-      mySeparating( false ), myExpansion( expansion )
-  {
-    myOne = Vector::diagonal( 1 );
-  }
-
-  /// @return the center of symmetry with doubled coordinates.
-  Point kCenter() const { return myKCenter; }
-
-  /// @return 'true' iff p satisfies the immediate interior point predicate.
-  bool isInside( const Point& p ) const
-  {
-    return (*myIntPredicate)( p );
-  }
-  /// @return 'true' iff p satisfies the immediate exterior point predicate.
-  bool isOutside( const Point& p ) const
-  {
-    return (*myExtPredicate)( p );
-  }
-
-  /// @return the symmetric point to p
-  Point symmetric( const Point& p ) const
-  { return myKCenter - p - myOne; }
-  
-  /// @return the vector (going up through the center of symmetry ) from a point p
-  Vector upVector( const Point& p ) const
-  { return myKCenter - 2*p - myOne; }
-
-  PointRange next( const Point& p ) const
-  {
-    PointRange N;
-    Point d = myOne + 2*p - myKCenter;
-    N.push_back( p );
-    if ( d[ 0 ] >= -1 ) N.push_back( p + Point::base( 0, 1 ) );
-    if ( d[ 0 ] <=  1 ) N.push_back( p - Point::base( 0, 1 ) );
-    for ( Dimension i = 1; i < dimension; i++ )
-      {
-        PointRange N2 = N;
-        for ( auto&& q : N2 )
-          {
-            N.push_back( q );
-            if ( d[ i ] >= -1 ) N.push_back( q + Point::base( i, 1 ) );
-            if ( d[ i ] <=  1 ) N.push_back( q - Point::base( i, 1 ) );
-          }
-      }
-    return N;
-  }
-
-  /// the center  of symmetry cannot have all its coordinates even.
-  bool init( const Point& kcenter )
-    {
-      myKCenter = kcenter;
-      myPoints.clear();
-      myActive.clear();
-      myM.clear();
-
-      // The starting points depend on the parity of the coordinates of the center.
-      // There are from 2^d to 2*3^(d-1) starting points.
-      PointRange points;
-      const auto x = myKCenter[ 0 ];
-      bool all_odd = true;
-      if ( x % 2 == 1 )
-        {
-          points.push_back( Point::base( 0, (x-1) / 2 ) );
-          points.push_back( Point::base( 0, (x-1) / 2 - 1 ) );
-          points.push_back( Point::base( 0, (x-1) / 2 + 1 ) );
-        }
-      else
-        {
-          all_odd = false;
-          points.push_back( Point::base( 0, x / 2 - 1 ) );
-          points.push_back( Point::base( 0, x / 2 ) );
-        }
-      for ( Dimension k = 1; k < dimension; k++ )
-        {
-          const auto n = points.size();
-          const auto y = myKCenter[ k ];
-          if ( y % 2 == 1 )
-            {
-              points.resize( 3*n );
-              for ( auto i = 0; i < n; i++ )
-                {
-                  points[ i ][ k ] = (y-1) / 2;
-                  Point q = points[ i ];
-                  q[ k ]         += 1;
-                  points[ i+n ]   = q;
-                  q[ k ]         -= 2;
-                  points[ i+2*n ] = q;
-                }
-            }
-          else
-            {
-              all_odd = false;
-              points.resize( 2*n );
-              const auto z  = y / 2;
-              const auto z1 = z - 1;
-              for ( auto i = 0; i < n; i++ )
-                {
-                  points[ i ][ k ] = z;
-                  Point q = points[ i ];
-                  q[ k ]  = z1;
-                  points[ i+n ]    = q;
-                }                  
-            }
-        }
-      if ( all_odd ) return false;
-      // std::cout << "#init=" << points.size() << std::endl;
-      // Keep only the points that satisfy the predicate.
-      Vector N;
-      for ( auto&& p : points )
-        {
-          const Point sp = symmetric( p );
-          if ( isInside( p ) && isOutside( sp ) )
-            {
-              //Node n( p, (2*p - myKCenter).squaredNorm() );
-              // myQ.push( n );
-              myM.insert( p );
-              myActive.insert( p );
-              myPoints.insert( p );
-              N += upVector( p );
-            }
-        }
-      if ( myActive.empty() ) return false;
-      for ( auto&& p : myActive )
-        if ( N.dot( upVector( p ) ) <= 0 ) return false; // not separating
-      mySeparating = true;
-      return true;
-    }
-
-  bool advanceFast()
-  {
-    PointSet N;
-    PointRange A( myActive.cbegin(), myActive.cend() );
-    // std::cout << "#active=" << A.size()
-    //           << " #points=" << myPoints.size()
-    //           << " #marked=" << myM.size()
-    //           << std::endl;
-    int nb_changed = 0;
-    for ( int i = 0; i < A.size(); i++ )
-      {
-        Point a = A[ i ];
-        Vector u = upVector( a );
-        auto  d2_a = u.squaredNorm();
-        bool modified = false;
-        for ( int j = 0; j < A.size(); j++ )
-          {
-            if ( j == i ) continue;
-            Vector v = upVector( A[ j ] );
-            Point b  = a + v;
-            if ( myExpansion && ( upVector( b ).squaredNorm() <= d2_a ) )
-              continue; // new point should be further away from center
-            if ( myM.count( b ) ) continue;
-            myM.insert( b );
-            if ( isInside( b ) && isOutside( symmetric( b ) ) )
-              {
-                modified    = true;
-                nb_changed += 1;
-                N.insert( b );
-                myPoints.insert( b );
-              }
-          }
-        if ( ! modified ) N.insert( a ); // keep it
-      }
-    if ( nb_changed > 0 )
-      {
-        std::swap( myActive, N );
-        return true;
-      }
-    else return false;
-  }
-
-  bool advance()
-  {
-    PointRange A( myActive.cbegin(), myActive.cend() );
-    // std::cout << "#active=" << A.size()
-    //           << " #points=" << myPoints.size()
-    //           << " #marked=" << myM.size()
-    //           << std::endl;
-    PointSet NA;
-    int nb_changed = 0;
-    for ( int i = 0; i < A.size(); i++ )
-      {
-        Point a = A[ i ];
-        Vector u = upVector( a );
-        auto  d2_a = u.squaredNorm();
-        PointRange N = next( a );
-        for ( auto&& b : N )
-          {
-            if ( myExpansion && ( upVector( b ).squaredNorm() < d2_a ) )
-              continue; // new point should be further away from center
-            if ( myM.count( b ) ) continue;
-            myM.insert( b );
-            if ( isInside( b ) && isOutside( symmetric( b ) ) )
-              {
-                myPoints.insert( b );
-                NA.insert( b );
-              }
-          }
-      }
-    std::swap( myActive, NA );
-    return ! NA.empty();
-  }
-  
-};
 
   // Represents the reconstruction of the dual surface with fully convex tangent planes.
 template < typename TKSpace >
@@ -774,6 +566,7 @@ struct DualReconstruction {
   typedef typename KSpace::Cell       Cell;
   typedef typename KSpace::SCell      SCell;
   typedef std::pair< Vector, Scalar > Plane;
+  typedef DGtal::SimpleMatrix< double, 3, 3 > RealTensor;
 
   typedef ::DGtal::PolygonalSurface<RealPoint> PolygonalSurface;
   typedef typename PolygonalSurface::Vertex Vertex;
@@ -789,6 +582,9 @@ struct DualReconstruction {
   std::vector< RealPoint >          dual_positions;
   double                   gridstep;
   IntegerComputer< Integer > ic;
+  std::vector< RealVector > dual_vertex_normals;
+  std::vector< RealVector > dual_face_normals;
+  
   DualReconstruction( const KSpace& aK,
                       CountedPtr< PolygonalSurface > aDualSurface,
                       const std::vector< SCell >&    theSurfels,
@@ -808,9 +604,17 @@ struct DualReconstruction {
         Vector    N = exvox - invox;
         plane_indices.push_back( i );
         planes.push_back( std::make_pair( N, N.dot( invox ) ) );
+        dual_vertex_normals.push_back( RealVector( N[ 0 ], N[ 1 ], N[ 2 ] ) );
       }
     for(auto face= 0 ; face < dualSurface->nbFaces(); ++face)
-      dual_faces.push_back( dualSurface->verticesAroundFace( face ));
+      {
+        auto V = dualSurface->verticesAroundFace( face );
+        dual_faces.push_back( V );
+        RealVector N;
+        for ( auto v : V ) N += dual_vertex_normals[ v ];
+        N /= N.norm();
+        dual_face_normals.push_back( N );
+      }
     
     //Recasting to vector of vertices
     for ( auto vtx = 0; vtx < dualSurface->nbVertices(); ++vtx )
@@ -851,9 +655,11 @@ struct DualReconstruction {
     // Compute plane
     Vector N = ( X[ 1 ] - X[ 0 ] ).crossProduct( X[ 2 ] - X[ 0 ] );
     reduce( N );
-    const auto   a = N.dot( X[ 0 ] );
-    Index plane_idx = planes.size();
-    int         nb = 0;
+    const auto   N1 = N.norm( Vector::NormType::L_1 );
+    const auto    a = N.dot( X[ 0 ] );
+    Index plane_idx_pos = planes.size();
+    Index plane_idx_neg = planes.size()+1;
+    int          nb = 0;
     // Extract 1-cells which are dual to surfels
     for ( auto&& kp : cells )
       {
@@ -875,30 +681,52 @@ struct DualReconstruction {
         const auto  int_val = N.dot( int_vox );
         const auto  ext_val = N.dot( ext_vox );
         // std::cout << " int_val=" << int_val << " a=" << a << " ext_val=" << ext_val;
-        if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
-        {
-          if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
-            trace.warning() << "Bad intersection" << std::endl;
-          continue;
-        }
-        const double s     = (double)( a - int_val ) / (double) (ext_val - int_val );
+        // if ( ( int_val <= a && ext_val <= a ) || ( int_val >= a && ext_val >= a ) )
+        // {
+        //   if ( ( int_val < a && ext_val < a ) || ( int_val > a && ext_val > a ) )
+        //     trace.warning() << "Bad intersection" << std::endl;
+        //   continue;
+        // }
+        if ( int_val == ext_val && a != int_val ) continue;
+        const double s     = (a == int_val)
+          ? 0.0
+          : (double)( a - int_val ) / (double) (ext_val - int_val );
         const double old_s = intercepts[ idx ];
+        // const auto     dot = N.dot( planes[ plane_indices[ idx ] ].first );
         // if ( old_s < s ) std::cout  << " s=" << old_s << " -> " << s << std::endl;
-        if ( old_s <= s )
+        if ( ( old_s < ( s - 0.0001 ) )
+             || ( ( fabs( old_s - s ) <= 0.0001 )
+                  && ( planes[ plane_indices[ idx ] ].first.norm( Vector::NormType::L_1 ) ) < N1 ) )
           { // this face intersects the dual linel above.
             intercepts[ idx ] = std::max( old_s, s );
             nb += 1;
-            plane_indices[ idx ] = plane_idx;
+            plane_indices[ idx ] = ( ext_val > int_val ) ? plane_idx_pos : plane_idx_neg;
           }
       }
-    if ( nb > 0 ) planes.push_back( std::make_pair( N, a ) );
+    if ( nb > 0 ) {
+      planes.push_back( std::make_pair( N, a ) );
+      planes.push_back( std::make_pair( -N, -a ) );
+    }
   }
 
-  RealPoint voxelPoint2RealPoint( Point q )
+  RealPoint voxelPoint2RealPoint( Point q ) const
   {
     return RealPoint( gridstep * ( q[ 0 ] ),
                       gridstep * ( q[ 1 ] ),
                       gridstep * ( q[ 2 ] ) );
+  }
+  Point pointelRealPoint2Point( RealPoint p ) const
+  {
+    RealPoint sp = RealPoint( round( p[ 0 ] / gridstep + 0.5 ),
+                              round( p[ 1 ] / gridstep + 0.5 ),
+                              round( p[ 2 ] / gridstep + 0.5 ) );
+    return Point( sp[ 0 ], sp[ 1 ], sp[ 2 ] );
+  }
+  RealPoint pointelPoint2RealPoint( RealPoint q ) const
+  {
+    return RealPoint( gridstep * ( q[ 0 ] - 0.5 ),
+                      gridstep * ( q[ 1 ] - 0.5 ),
+                      gridstep * ( q[ 2 ] - 0.5 ) );
   }
 
   bool isSamePlane( Index p_idx1, Index p_idx2 ) const
@@ -911,7 +739,7 @@ struct DualReconstruction {
   {
     std::set< Index > all_plane_indices;
     for ( auto idx : plane_indices ) all_plane_indices.insert( idx );
-    auto planes_copy = planes;
+    std::vector< Plane > planes_copy = planes;
     planes.resize( all_plane_indices.size() );
     Index nidx = 0;
     std::map< Index, Index > renumber;
@@ -921,8 +749,8 @@ struct DualReconstruction {
         planes[ nidx ]  = planes_copy[ idx ];
         nidx           += 1;
       }
-    for ( auto& idx : plane_indices )
-      idx            = renumber[ idx ];
+    for ( int i = 0; i < plane_indices.size(); i++ )
+      plane_indices[ i ] = renumber[ plane_indices[ i ] ];
   }
   
   void updatePlaneFaces()
@@ -949,6 +777,267 @@ struct DualReconstruction {
       }
     std::cout << "Merged " << merged << " planar faces" << std::endl;
   }
+
+  std::vector< RealVector > getNormalVectors() const
+  {
+    std::vector< RealVector > normals( surfels.size() );
+    for ( Index i = 0; i < surfels.size(); i++ )
+      {
+        const auto  N = planes[ plane_indices[ i ] ].first;
+        RealVector rN = RealVector( N[ 0 ], N[ 1 ], N[ 2 ] );
+        normals[ i ]  = rN.getNormalized(); 
+      }
+    return normals;
+  }
+  std::vector< Vector > getExactNormalVectors() const
+  {
+    std::vector< Vector > exact_normals( surfels.size() );
+    for ( Index i = 0; i < surfels.size(); i++ )
+      {
+        const auto  N = planes[ plane_indices[ i ] ].first;
+        //RealVector rN = RealVector( N[ 0 ], N[ 1 ], N[ 2 ] );
+        exact_normals[ i ]  = N;
+      }
+    return exact_normals;
+  }
+  std::vector< Scalar > getExactIntercepts() const
+  {
+    std::vector< Scalar > exact_intercepts( surfels.size() );
+    for ( Index i = 0; i < surfels.size(); i++ )
+      {
+        const auto  alpha = planes[ plane_indices[ i ] ].second;
+        exact_intercepts[ i ]  = alpha;
+      }
+    return exact_intercepts;
+  }
+
+  std::vector< RealPoint > getLowerPoints() const
+  {
+    std::vector< RealPoint > L;
+    for ( Index i = 0; i < surfels.size(); i++ )
+      {
+        if ( intercepts[ i ] == 0.0 )
+          {
+            auto int_vox = K.interiorVoxel( surfels[ i ] );
+            auto int_p   = voxelPoint2RealPoint( int_vox );
+            L.push_back( int_p );
+          }
+      }
+    return L;
+  }
+
+  RealPoint pointelPosition( RealPoint pp,
+                             std::vector< Index > surfel_indices, int & type ) const
+  {
+    std::set< Index > local_plane_indices;
+    for ( auto idx : surfel_indices ) local_plane_indices.insert( plane_indices[ idx ] );
+    std::vector< RealVector > A;
+    std::vector< Scalar >     B;
+    for ( auto pidx : local_plane_indices )
+      {
+        Vector N = planes[ pidx ].first;
+        RealVector rN( N[ 0 ], N[ 1 ], N[ 2 ] );
+        Scalar l = rN.norm(); 
+        A.push_back( rN / l );
+        B.push_back( Scalar( planes[ pidx ].second ) / l );
+      }
+    type = A.size();
+    // we project p onto the first plane, since all of them are equivalent or parallel.
+    RealPoint q;
+    for ( auto i = 0; i < A.size(); i++ )
+      {
+        Scalar t = ( pp.dot( A[ i ] ) - B[ i ] ) / A[ i ].squaredNorm();
+        q += ( pp - t * A[ i ] );
+      }
+    return q / A.size();
+  }
+
+  RealPoint pointelPosition2( RealPoint pp,
+                             std::vector< Index > surfel_indices, int & type ) const
+  {
+    typedef DGtal::SimpleMatrix< double, 3, 3 > RealTensor;
+    auto p = pp;// pointelRealPoint2Point( pp );
+    RealPoint pointel( p[ 0 ], p[ 1 ], p[ 2 ] );
+    std::set< Index > local_plane_indices;
+    for ( auto idx : surfel_indices ) local_plane_indices.insert( plane_indices[ idx ] );
+    std::vector< RealVector > A;
+    std::vector< Scalar >     B;
+    for ( auto pidx : local_plane_indices )
+      {
+        Vector N = planes[ pidx ].first;
+        RealVector rN( N[ 0 ], N[ 1 ], N[ 2 ] );
+        Scalar l = rN.norm(); 
+        A.push_back( rN / l );
+        B.push_back( Scalar( planes[ pidx ].second ) / l );
+      }
+    type = 3;
+    if ( A.size() >= 3 )
+      {  // Trying full rank. We perform linear regression
+        RealTensor M;
+        RealVector C;
+        for ( int k = 0; k < A.size(); k++ )
+          for ( int j = 0; j < 3; j++ ) {
+            for ( int i = 0; i < 3; i++ ) {
+              M( i, j ) += A[ k ][ i ] * A[ k ][ j ];
+            }
+            C[ j ] += A[ k ][ j ] * B[ k ];
+          }
+        const auto d  = M.determinant();
+        if ( d != 0 ) {
+          const auto P = M.inverse() * C;
+          auto newp = RealPoint( P[ 0 ], P[ 1 ], P[ 2 ] );
+          return ( newp - p ).squaredNorm() <= 1.0 ? newp : p;
+        }
+      }
+    type = 2;
+    if ( A.size() >= 2 )
+      { // Trying to find two independent vectors
+        RealVector D = RealVector::zero;
+        for ( int i = 0; i < A.size(); i++ )
+          for ( int j = i+1; j < A.size(); j++ )
+            {
+              D = A[ i ].crossProduct( A[ j ] );
+              if ( D != RealVector::zero )
+                { // we project p onto the line that is the intersection of the planes
+                  RealTensor M;
+                  RealVector C;
+                  for ( int k = 0; k < 3; k++ ) {
+                    M( 0, k ) = A[ i ][ k ];
+                    M( 1, k ) = A[ j ][ k ];
+                    M( 2, k ) = D[ k ];
+                  }
+                  C = RealVector( B[ 0 ], B[ 1 ], pointel.dot( D ) );
+                  const auto d  = M.determinant();
+                  if ( d == 0 ) std::cerr << "defficient rank" << std::endl;
+                  else
+                    {
+                      const auto P = M.inverse() * C;
+                      auto newp = RealPoint( P[ 0 ], P[ 1 ], P[ 2 ] );
+                      return ( newp - p ).squaredNorm() <= 1.0 ? newp : p;
+                    }
+                }
+            }
+      }
+    type = 1;
+    // we project p onto the first plane, since all of them are equivalent or parallel.
+    Scalar t = ( pointel.dot( A[ 0 ] ) - B[ 0 ] ) / A[0].squaredNorm();
+    return ( pointel - t * A[ 0 ] );
+  }
+  
+   
+  std::pair< std::vector< RealVector >, std::vector< Scalar > >
+  getDualPlanarities() const
+  {
+    const int nb = dualSurface->nbFaces();
+    std::vector< RealVector > N( nb );
+    std::vector< Scalar >     P( nb );
+    for ( Index f = 0; f < nb; f++ )
+      std::tie( N[ f ], P[ f ] ) = dualPlanarity( f );
+    return std::make_pair( N, P );
+  }
+  
+  std::pair< RealVector, Scalar > dualPlanarity( Index face ) const
+  {
+    auto V = dualSurface->verticesAroundFace( face );
+    auto N = dual_face_normals[ face ];
+    Scalar      best_error = std::numeric_limits<Scalar>::infinity();
+    RealVector best_normal = RealVector::zero;
+    Dimension      best_i  = 3;
+    // Check all axis
+    for ( Dimension i = 0; i < 3; i++ )
+      {
+        Dimension  j = (i+1)%3;
+        Dimension  k = (i+2)%3;
+        // Retrieve data
+        std::vector< RealPoint > Input;
+        for ( auto v : V ) Input.push_back( dual_positions[ v ] );
+        RealTensor M;
+        RealVector B;
+        Scalar error = 0.0;
+        for ( int v = 0; v < V.size(); v++ )
+          {
+            const RealVector& D = Input[ v ];
+            M( i, i ) += 1.0;           // sum 1
+            M( j, j ) += D[ j ]*D[ j ]; // sum y_i^2
+            M( k, k ) += D[ k ]*D[ k ]; // sum z_i^2
+            M( j, i ) -= D[ j ];        // sum -y_i
+            M( i, j ) -= D[ j ];        // sum -y_i
+            M( k, i ) -= D[ k ];        // sum -z_i
+            M( i, k ) -= D[ k ];        // sum -z_i
+            M( j, k ) += D[ j ]*D[ k ]; // sum y_i z_i
+            M( k, j ) += D[ j ]*D[ k ]; // sum y_i z_i
+            B[ i ]    += D[ i ];
+            B[ j ]    += -D[ j ]*D[ i ];
+            B[ k ]    += -D[ k ]*D[ i ];
+            error     += D[ i ]*D[ i ];
+          }
+        if ( fabs( M.determinant() ) > 1e-8 ) {
+          auto R = M.inverse() * B;
+          RealVector rN = R;
+          rN[ i ] = 1.0;
+          if ( N.dot( rN ) < 0.0 ) rN *= -1;  
+          error  += R.dot( M * R ) - 2.0 * R.dot( B );
+          if ( error < best_error ) {
+            best_i = i;
+            best_error = error;
+            best_normal = rN.getNormalized();
+          }
+        }
+      }
+    return best_error == std::numeric_limits<Scalar>::infinity()
+      ? std::make_pair( N, -1.0 )
+      : std::make_pair( best_normal, best_error );
+  }
+
+    
+  std::vector<Index>
+  segmentDualSurface( double epsilon = 0.00001 )
+  {
+    const Index Invalid = (Index) -1;
+    std::vector< RealVector > N; //< normals
+    std::vector< Scalar >     P; //< planarities
+    std::tie( N, P ) = getDualPlanarities();
+    std::vector<Index> labels( dualSurface->nbFaces(), Invalid );
+    typedef std::pair< Scalar, Index > Node;
+    std::priority_queue< Node, std::vector< Node >, std::greater< Node > > Q; //< queue
+    std::queue< Index > QI; //< queue of invalid faces
+    // Create queue
+    for ( Index f = 0; f < dualSurface->nbFaces(); f++ )
+      if ( P[ f ] == -1.0 ) QI.push( f );
+      else Q.push( std::make_pair( P[ f ], f ) );
+    std::cout << "Faces #valid=" << Q.size() << " #invalid=" << QI.size() << std::endl;
+    // Process queue
+    Index label = 0;
+    while ( ! Q.empty() )
+      {
+        Index f = Q.top().second; Q.pop();
+        if ( labels[ f ]  != Invalid ) continue; // already labelled
+        std::queue< Index > localQ;
+        std::set< Index >   M;
+        localQ.push( f );
+        M.insert( f );
+        while ( ! localQ.empty() )
+          {
+            Index g = localQ.front(); localQ.pop();
+            labels[ g ] = label;
+            auto arcs = dualSurface->arcsAroundFace( g );
+            for ( auto&& a : arcs )
+              {
+                auto ng = dualSurface->faceAroundArc( dualSurface->opposite( a ) );
+                if ( ng == dualSurface->INVALID_FACE ) continue; // boundary
+                if ( M.count( ng ) ) continue;          // already processed
+                if ( ( P[ ng ] == -1 ) || ( ( N[ f ] - N[ ng ] ).norm() < epsilon ) )
+                  {
+                    localQ.push( ng );
+                    M.insert( ng );
+                  }
+              }
+          }
+        label += 1;
+      }
+    return labels;
+  }
+
 };
 
   
